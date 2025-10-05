@@ -1,0 +1,326 @@
+/* ===========================
+   FocusFlow – UI (dark / iOS)
+   =========================== */
+
+:root{
+  --bg:#0c0f17;
+  --panel:#111827;
+  --panel-2:#0f1422;
+  --line:#1f2937;
+  --fg:#eef2ff;
+  --muted:#9aa3b2;
+
+  --accent:#0a84ff;      /* iOS blue */
+  --accent-2:#22d3ee;
+
+  /* Task priority hues */
+  --prio-dw-bg:  rgba(255, 60,  60, .10);
+  --prio-dw-l:   #ff5e5e;
+  --prio-dnw-bg: rgba(255,180, 80, .10);
+  --prio-dnw-l:  #ffb84d;
+  --prio-ndw-bg: rgba( 80,200,120, .10);
+  --prio-ndw-l:  #4dff8a;
+  --prio-ndnw-bg:rgba( 80,160,255, .10);
+  --prio-ndnw-l: #4da6ff;
+
+  --shadow: 0 10px 28px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body,#root{height:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(10,132,255,.12), transparent 60%),
+    radial-gradient(900px 500px at 120% 10%, rgba(34,211,238,.10), transparent 55%),
+    var(--bg);
+  color:var(--fg);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,Helvetica,sans-serif;
+  line-height:1.4;
+}
+
+input,select,textarea,button{font-size:16px} /* iOS zoom fix */
+
+.safe{padding-top:calc(env(safe-area-inset-top,0px)+8px);padding-bottom:calc(env(safe-area-inset-bottom,0px)+12px)}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+
+/* ---------------- AppBar ---------------- */
+.appbar{position:sticky;top:0;z-index:50;background:rgba(12,15,23,.78);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)}
+.appbar-inner{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.burger{appearance:none;border:0;background:transparent;color:var(--fg);padding:8px;border-radius:12px;cursor:pointer}
+.burger:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.brand{font-weight:800;letter-spacing:.3px}
+.head-actions{margin-left:auto;display:flex;gap:8px}
+
+/* --------------- Drawer ----------------- */
+.drawer{position:fixed;inset:0;z-index:60;display:none}
+.drawer.open{display:block}
+.drawer .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.drawer .panel{
+  position:absolute;top:0;bottom:0;left:0;width:86%;max-width:340px;
+  background:rgba(15,18,26,.92);backdrop-filter:blur(12px);
+  border-right:1px solid rgba(255,255,255,.08);box-shadow:var(--shadow);padding:16px;overflow:auto
+}
+.menu-title{font-weight:800;margin-bottom:12px}
+.menu-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.menu-btn{width:100%;text-align:left;border:1px solid #1c2436;background:#0e1320;color:var(--fg);padding:12px;border-radius:12px;cursor:pointer}
+.menu-btn.active{border-color:transparent;background:linear-gradient(180deg,var(--accent),#0066dd)}
+
+/* --------------- Grid / Cards ------------ */
+.grid{display:grid;grid-template-columns:1fr;gap:12px}
+.grid.one{grid-template-columns:1fr}
+.grid.two{grid-template-columns:1fr}
+@media(min-width:860px){.grid.two{grid-template-columns:1fr 1fr}}
+
+.card{
+  background:linear-gradient(180deg, rgba(255,255,255,.02), transparent), var(--panel);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+  box-shadow:var(--shadow)
+}
+.card-hero{
+  background:
+    radial-gradient(600px 300px at -10% -30%, rgba(10,132,255,.16), transparent 60%),
+    radial-gradient(500px 260px at 120% 0%, rgba(34,211,238,.12), transparent 55%),
+    var(--panel);
+}
+
+.h1{font-size:22px;font-weight:800;margin:2px 0 8px}
+.muted{font-size:12px;color:var(--muted)}
+.ol{margin:0 0 8px 18px}
+.footer{margin:18px 0 24px;font-size:12px;color:var(--muted);text-align:center}
+
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.row.gap{gap:8px}
+.row.between{justify-content:space-between}
+.row.end{justify-content:flex-end}
+.mt6{margin-top:6px}.mt8{margin-top:8px}.mt12{margin-top:12px}
+
+/* --------------- Inputs / Buttons -------- */
+.input,.select,.textarea{
+  width:100%;
+  background:#0a101b;
+  color:var(--fg);
+  border:1px solid #283247;
+  border-radius:12px;
+  padding:10px
+}
+.input:focus-visible,.select:focus-visible,.textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{width:110px}
+
+.btn{
+  appearance:none;border:1px solid #283247;background:#171d2e;color:var(--fg);
+  padding:10px 14px;border-radius:12px;cursor:pointer;transition:transform .06s ease, filter .15s ease
+}
+.btn:hover{filter:brightness(1.05)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.ghost{background:#12182a}
+.btn-primary{background:linear-gradient(180deg, var(--accent), #0066dd);border-color:transparent}
+
+.badge{
+  font-size:12px;padding:3px 8px;border-radius:999px;background:#0e1630;border:1px solid #283247
+}
+.badge.small{
+  background: rgba(255,255,255,0.08);
+  padding:2px 6px;border-radius:6px;
+  font-size:.75rem;font-weight:700;letter-spacing:.3px
+}
+.badge.metric{min-width:36px;text-align:center;background:#0d1731;border-color:#2a3857}
+
+/* ----------- Check-in band colors -------- */
+.badge.metric.band-hoch-belastet { background:#3b0a0a; border-color:#ef4444; }
+.badge.metric.band-angespannt    { background:#332a09; border-color:#eab308; }
+.badge.metric.band-solide        { background:#113518; border-color:#22c55e; }
+.badge.metric.band-gut           { background:#0b2f3b; border-color:#06b6d4; }
+
+/* ---------------- Lists / Items ---------- */
+.list{display:grid;gap:8px;list-style:none;margin:0;padding:0}
+
+.item{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  border:1px solid #26324b;
+  background:#0f1424;
+  border-radius:14px;
+  padding:10px;
+}
+
+/* ------------ Task card layout ----------- */
+.item.task{
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:14px;
+  padding:12px 14px;
+  background:rgba(255,255,255,0.02);
+  transition:background .2s ease, transform .12s ease, filter .2s ease;
+}
+.item.task:hover{ transform:translateY(-2px) }
+.item.task.done{ filter:saturate(.65) brightness(.95) }
+
+.item.task .row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.item.task .row.top{margin-bottom:4px}
+.item.task .row.mid{margin-bottom:8px;font-size:.95rem;opacity:.95}
+.item.task .row.bottom{gap:6px;flex-wrap:wrap}
+
+/* Checkbox + Titel */
+.item.task .checkbox{
+  margin-right:10px;
+  transform:scale(1.25);
+}
+.task-title{
+  font-size:1.35rem;
+  font-weight:800;
+  line-height:1.25;
+  letter-spacing:.2px;
+  flex:1;
+  min-width:0;
+}
+.task-title.done{text-decoration:line-through;opacity:.55}
+
+/* meta (Dauer, Prio, Deadline) */
+.meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.deadline{margin-left:auto;white-space:nowrap;color:var(--muted);font-size:.9rem}
+
+/* Priority label badge (short code) */
+.badge.prio{border-color:transparent;background:#172036}
+
+/* ------- Priority colors (override) ------ */
+.item.task.prio-dw   { background:var(--prio-dw-bg);  border-left:3px solid var(--prio-dw-l); }
+.item.task.prio-dnw  { background:var(--prio-dnw-bg); border-left:3px solid var(--prio-dnw-l); }
+.item.task.prio-ndw  { background:var(--prio-ndw-bg); border-left:3px solid var(--prio-ndw-l); }
+.item.task.prio-ndnw { background:var(--prio-ndnw-bg);border-left:3px solid var(--prio-ndnw-l); }
+
+/* --------------- Break items ------------- */
+.item.break{
+  background:rgba(255,255,255,0.05);
+  color:#d3d7e5;
+  font-style:italic;
+  border-left:3px solid #8a93a8;
+}
+.item.break .title{font-weight:600}
+
+/* --------------- Generic title ---------- */
+.title{flex:1;min-width:0;white-space:normal;overflow:visible;text-overflow:clip}
+.title.done{text-decoration:line-through;opacity:.7}
+.actions{flex-wrap:wrap;justify-content:flex-end}
+
+/* --------------- Progress ---------------- */
+.progress{height:8px;background:#0a101b;border-radius:999px;overflow:hidden;margin-top:8px;border:1px solid #1b2336}
+.progress-bar{height:100%;background:linear-gradient(90deg, var(--accent), var(--accent-2))}
+
+/* --------------- Scale / Range ----------- */
+.scale{display:flex;align-items:center;gap:8px;margin:6px 0}
+.scale-label{width:220px;max-width:40vw}
+.range{flex:1}
+
+/* Range with traffic-light gradient */
+.range.color{
+  appearance:none;height:12px;border-radius:999px;
+  background:linear-gradient(90deg,#ef4444,#f59e0b,#22c55e);
+  border:1px solid #1b2336;outline:none;
+}
+.range.color:focus{box-shadow:0 0 0 3px rgba(10,132,255,.25)}
+.range.color::-webkit-slider-thumb{
+  appearance:none;width:22px;height:22px;border-radius:50%;
+  background:#fff;border:2px solid #0a84ff;box-shadow:0 2px 8px rgba(0,0,0,.4)
+}
+.range.color:active::-webkit-slider-thumb{transform:scale(1.02)}
+.range.color::-moz-range-track{
+  height:12px;border-radius:999px;background:linear-gradient(90deg,#ef4444,#f59e0b,#22c55e);
+  border:1px solid #1b2336;
+}
+.range.color::-moz-range-thumb{
+  width:22px;height:22px;border-radius:50%;
+  background:#fff;border:2px solid #0a84ff;box-shadow:0 2px 8px rgba(0,0,0,.4)
+}
+
+/* --------------- Nudge ------------------- */
+.nudge{margin-top:8px;padding:10px;border-radius:12px;background:#121a2e;border:1px solid #26324b}
+.nudge-title{font-weight:700;margin-bottom:6px}
+
+/* --------------- Breath Timer ------------ */
+.timer-head{display:flex;align-items:baseline;gap:8px}
+.timer-big{font-size:28px;font-weight:800;letter-spacing:.5px}
+.timer-sub{font-size:12px;color:var(--muted)}
+.timer-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.step{background:#0f1628;border:1px solid #23314c;border-radius:12px;padding:10px}
+.step.active{outline:2px solid var(--accent)}
+.step-name{font-size:12px;color:var(--muted)}
+.step-seconds{font-size:16px;font-weight:700}
+.step-bar{height:6px;background:#0a101b;border:1px solid #1b2336;border-radius:999px;overflow:hidden;margin-top:6px}
+.step-bar>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+/* ===== Dashboard-Übersicht (reduziert) ===== */
+.item.overview-task{
+  padding:12px 14px;
+  gap:6px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.02);
+}
+
+.item.overview-task .row.top{
+  gap:10px;
+  align-items:center;
+}
+.item.overview-task .task-title{
+  font-size:1.08rem;
+  font-weight:800;
+  line-height:1.28;
+}
+.item.overview-task .task-title.done{
+  text-decoration:line-through;
+  opacity:.6;
+}
+
+.item.overview-task .row.meta{
+  gap:10px;
+  align-items:center;
+  opacity:.95;
+}
+.item.overview-task .deadline{
+  margin-left:auto;
+  color:var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.item.overview-task .deadline.overdue{ color:#f87171; }
+
+/* Prio nur als Schriftfarbe (Badge) */
+.item.overview-task .prio-text{ background:transparent; border:1px dashed rgba(255,255,255,.15); }
+
+/* Farbzuordnung – nur Textfarbe, Planner bleibt unverändert */
+.item.overview-task.c-dw   .prio-text{ color:#f43f5e; border-color: rgba(244,63,94,.35); }
+.item.overview-task.c-dnw  .prio-text{ color:#f59e0b; border-color: rgba(245,158,11,.35); }
+.item.overview-task.c-ndw  .prio-text{ color:#22c55e; border-color: rgba(34,197,94,.35); }
+.item.overview-task.c-ndnw .prio-text{ color:#3b82f6; border-color: rgba(59,130,246,.35); }
+
+/* Größere Checkbox für die Übersicht */
+.item.overview-task .checkbox{ transform:scale(1.15); }
+/* ==== Prio Button Row ==== */
+.prio-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.prio-btn {
+  border: 1px solid #283247;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.2s ease;
+}
+.prio-btn:hover {
+  filter: brightness(1.15);
+}
+.prio-btn.active {
+  font-weight: 600;
+  color: #fff !important;
+  border-color: transparent;
+}
