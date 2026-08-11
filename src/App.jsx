@@ -1327,6 +1327,81 @@ function _dndReorderOrMove(api, { from, to, draggedId, beforeId }) {
   });
 }
 
+/* ---------------- Datepicker (Popover-Kalender) ---------------- */
+function DatePicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => value ? new Date(`${value}T00:00:00`) : new Date());
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+  const startPad = (new Date(y, m, 1).getDay() + 6) % 7; // Montag = 0
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(y, m, d));
+  const todayISO = _toISODate(new Date());
+  const label = value ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) : "Datum wählen";
+  const pick = (d) => { onChange(_toISODate(d)); setOpen(false); };
+
+  return (
+    <div className="datepicker" ref={ref}>
+      <button type="button" className={`dp-trigger ${value ? "has" : ""}`} onClick={() => setOpen(o => !o)}>
+        <span>📅 {label}</span>
+        {value && <span className="dp-clear" role="button" onClick={(e) => { e.stopPropagation(); onChange(null); }}>✕</span>}
+      </button>
+      {open && (
+        <div className="dp-pop">
+          <div className="dp-head">
+            <button type="button" className="btn ghost dp-nav" onClick={() => setViewMonth(new Date(y, m - 1, 1))}>←</button>
+            <span className="dp-title">{viewMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
+            <button type="button" className="btn ghost dp-nav" onClick={() => setViewMonth(new Date(y, m + 1, 1))}>→</button>
+          </div>
+          <div className="dp-grid dp-week">{["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(w => <span key={w} className="dp-wd">{w}</span>)}</div>
+          <div className="dp-grid">
+            {cells.map((d, i) => d
+              ? <button type="button" key={i} className={`dp-day ${_toISODate(d) === value ? "sel" : ""} ${_toISODate(d) === todayISO ? "today" : ""}`} onClick={() => pick(d)}>{d.getDate()}</button>
+              : <span key={i} className="dp-empty" />)}
+          </div>
+          <div className="dp-foot">
+            <button type="button" className="btn ghost" onClick={() => pick(new Date())}>Heute</button>
+            {value && <button type="button" className="btn ghost" onClick={() => { onChange(null); setOpen(false); }}>Löschen</button>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Prio-Auswahl als Kacheln ---------------- */
+const PRIO_TILES = [
+  { val: "DW",   t: "Sofort tun", s: "dringend & wichtig",      cls: "q-dw" },
+  { val: "NDW",  t: "Einplanen",  s: "wichtig",                 cls: "q-ndw" },
+  { val: "DNW",  t: "Schnell",    s: "dringend",                cls: "q-dnw" },
+  { val: "NDNW", t: "Später",     s: "weder noch",              cls: "q-ndnw" },
+];
+function PrioPicker({ value, onChange }) {
+  return (
+    <div className="prio-picker">
+      <div className="prio-grid">
+        {PRIO_TILES.map(p => (
+          <button type="button" key={p.val} className={`prio-tile ${p.cls} ${value === p.val ? "active" : ""}`} onClick={() => onChange(p.val)}>
+            <span className="pt-title">{p.t}</span>
+            <span className="pt-sub">{p.s}</span>
+          </button>
+        ))}
+      </div>
+      <button type="button" className={`prio-none ${value === "" ? "active" : ""}`} onClick={() => onChange("")}>Keine Priorität</button>
+    </div>
+  );
+}
+
 /* ---------------- Column & Row (mit DnD) ---------------- */
 function _PlannerColumn({
   api,
@@ -1361,37 +1436,19 @@ function _PlannerColumn({
       <div className="row between"><strong>{title}</strong></div>
 
       {allowAdd && (
-        <div className="row wrap mt8">
+        <div className="add-form mt8">
           <input className="input" placeholder="Aufgabe…" value={v}
             onChange={e => setV(e.target.value)}
             onKeyDown={e => e.key === "Enter" && add()} />
-<div className="prio-buttons">
-  {[
-    { val: "DW", label: "Dringend & Wichtig", color: "#ff5e5e" },
-    { val: "NDW", label: "Nicht dringend & Wichtig", color: "#4dff8a" },
-    { val: "DNW", label: "Dringend & nicht wichtig", color: "#ffb84d" },
-    { val: "NDNW", label: "Nicht dringend & nicht wichtig", color: "#4da6ff" },
-    { val: "", label: "Keine Prio", color: "#aaa" },
-  ].map(btn => (
-    <button
-      key={btn.val || "none"}
-      className={`prio-btn ${p === btn.val ? "active" : ""}`}
-      style={{
-        borderColor: btn.color,
-        color: p === btn.val ? "#fff" : btn.color,
-        background: p === btn.val ? btn.color : "transparent",
-      }}
-      onClick={() => setP(btn.val)}
-      type="button"
-    >
-      {btn.label}
-    </button>
-  ))}
-</div>
-          <input className="input num" type="number" min="5" step="5" placeholder="Dauer (Min)"
-            value={dur} onChange={e => setDur(e.target.value)} />
-          <input className="input" type="date" value={due} onChange={e => setDue(e.target.value)} />
-          <button className="btn btn-primary" onClick={add} type="button">Hinzufügen</button>
+
+          <PrioPicker value={p} onChange={setP} />
+
+          <div className="row wrap gap add-form-row">
+            <input className="input num" type="number" min="5" step="5" placeholder="Dauer (Min)"
+              value={dur} onChange={e => setDur(e.target.value)} />
+            <DatePicker value={due || null} onChange={(iso) => setDue(iso || "")} />
+            <button className="btn btn-primary add-submit" onClick={add} type="button">Hinzufügen</button>
+          </div>
         </div>
       )}
 

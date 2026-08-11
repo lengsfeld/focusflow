@@ -466,6 +466,48 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* ===== Empfehlungen (tiefer) ===== */
 .advice-how{font-size:13px;color:#a7f3d0;background:rgba(34,197,94,.08);border-left:3px solid #22c55e;border-radius:8px;padding:6px 10px}
 
+/* ===== Eingabemaske: Prio-Kacheln + Datepicker ===== */
+.add-form{display:flex;flex-direction:column;gap:10px}
+.add-form-row{align-items:center}
+.prio-picker{display:flex;flex-direction:column;gap:8px}
+.prio-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.prio-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);cursor:pointer;border-top:3px solid var(--line);transition:transform .06s ease, filter .15s ease}
+.prio-tile:hover{filter:brightness(1.08)}
+.prio-tile:active{transform:translateY(1px)}
+.prio-tile .pt-title{font-weight:700;font-size:14px}
+.prio-tile .pt-sub{font-size:11px;color:var(--muted)}
+.prio-tile.q-dw{border-top-color:var(--prio-dw-l)}
+.prio-tile.q-ndw{border-top-color:var(--prio-ndw-l)}
+.prio-tile.q-dnw{border-top-color:var(--prio-dnw-l)}
+.prio-tile.q-ndnw{border-top-color:var(--prio-ndnw-l)}
+.prio-tile.active{box-shadow:inset 0 0 0 2px var(--accent);border-color:var(--accent)}
+.prio-tile.q-dw.active{background:var(--prio-dw-bg)}
+.prio-tile.q-ndw.active{background:var(--prio-ndw-bg)}
+.prio-tile.q-dnw.active{background:var(--prio-dnw-bg)}
+.prio-tile.q-ndnw.active{background:var(--prio-ndnw-bg)}
+.prio-none{align-self:flex-start;padding:6px 12px;border-radius:999px;border:1px dashed var(--line);background:transparent;color:var(--muted);cursor:pointer;font-size:13px}
+.prio-none.active{border-style:solid;border-color:var(--accent);color:var(--fg)}
+.add-submit{margin-left:auto}
+
+.datepicker{position:relative}
+.dp-trigger{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;border:1px solid #283247;background:#0a101b;color:var(--muted);cursor:pointer;font-size:14px}
+.dp-trigger.has{color:var(--fg);border-color:var(--accent)}
+.dp-clear{color:var(--muted);font-size:12px;padding:0 2px;border-radius:6px}
+.dp-clear:hover{color:#f87171}
+.dp-pop{position:absolute;z-index:80;top:calc(100% + 6px);left:0;width:280px;max-width:88vw;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px}
+.dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.dp-title{font-weight:700;text-transform:capitalize}
+.dp-nav{padding:4px 10px}
+.dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dp-week{margin-bottom:4px}
+.dp-wd{text-align:center;font-size:11px;color:var(--muted)}
+.dp-day{aspect-ratio:1;border:0;border-radius:8px;background:#0f1628;color:var(--fg);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center}
+.dp-day:hover{background:#1a2238}
+.dp-day.today{outline:1px solid var(--accent-2)}
+.dp-day.sel{background:linear-gradient(180deg,var(--accent),var(--accent-600));color:#fff;font-weight:700}
+.dp-empty{aspect-ratio:1}
+.dp-foot{display:flex;gap:8px;justify-content:space-between;margin-top:8px}
+
 /* ===== Eisenhower-Matrix ===== */
 .matrix{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
 .matrix-cell{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;min-height:170px;border-top:3px solid var(--line)}
