@@ -639,9 +639,9 @@ export default function App() {
   const todayDone = state.planner.today.filter(i => i.done && !i.isBreak).length;
   const todayTotal = state.planner.today.filter(i => !i.isBreak).length;
 
-  // Fokus-Vollbild: aktuell fokussierte Aufgabe
+  // Fokus-Vollbild: aktuell fokussierte Aufgabe oder Pause
   const focusItem = state.ui.focusId
-    ? state.planner.today.find(t => t.id === state.ui.focusId && !t.isBreak)
+    ? state.planner.today.find(t => t.id === state.ui.focusId)
     : null;
 
   // Mini-Belohnung: kurze Feier, wenn eine Aufgabe fertig wird
@@ -851,6 +851,12 @@ function _PlannerRowMini({ item, onToggle, api }) {
         <div className="row meta">
           <span className="badge small break-badge">⏱ {item.durationMin || 10} Min · Erholung</span>
         </div>
+        {api && (
+          <div className="mini-actions">
+            <TaskTimer item={item} timers={api.state.timers} api={api} compact />
+            <button className="btn ghost mini-focus" onClick={() => api.setFocus(item.id)} title="Pause im Vollbild" type="button">🎯</button>
+          </div>
+        )}
       </li>
     );
   }
@@ -1338,7 +1344,15 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
   if (item.isBreak) {
     return (
       <li className="item break" aria-label={`Pause ${item.durationMin || 10} Minuten`}>
-        <div className="title">☕ Pause · {item.durationMin || 10} Min</div>
+        <div className="title">🌿 {item.title || "Pause"} · {item.durationMin || 10} Min</div>
+        {list === "today" && (
+          <>
+            <TaskTimer item={item} timers={api.state.timers} api={api} />
+            <div className="row bottom actions" style={{ marginTop: 8 }}>
+              <button className="btn" title="Pause im Vollbild" onClick={() => api.setFocus(item.id)} type="button">🎯 Pause fokussieren</button>
+            </div>
+          </>
+        )}
       </li>
     );
   }
@@ -1421,21 +1435,27 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
 function TaskTimer({ item, timers, api, compact }) {
   const isActive = timers?.activeId === item.id;
   useNow(isActive);
+  const isBreak = !!item.isBreak;
   const spent = liveSpentSec(item, timers);
   const plannedSec = (Number(item.durationMin) || 0) * 60;
   const pct = plannedSec > 0 ? Math.min(100, (spent / plannedSec) * 100) : 0;
   const over = plannedSec > 0 && spent > plannedSec;
-  const barState = !plannedSec ? "none" : over ? "over" : pct >= 80 ? "warn" : "ok";
+  const remaining = plannedSec > 0 ? Math.max(0, plannedSec - spent) : null;
+  const finished = plannedSec > 0 && spent >= plannedSec;
+  const barState = isBreak ? "break" : (!plannedSec ? "none" : over ? "over" : pct >= 80 ? "warn" : "ok");
 
   return (
-    <div className={`tasktimer ${isActive ? "running" : ""} ${compact ? "compact" : ""}`}>
+    <div className={`tasktimer ${isActive ? "running" : ""} ${compact ? "compact" : ""} ${isBreak ? "is-break" : ""}`}>
       <div className="tasktimer-row">
         {!isActive
           ? <button className="btn btn-primary tt-btn" type="button" onClick={() => api.taskStart(item.id)}>▶ Start</button>
           : <button className="btn tt-btn tt-stop" type="button" onClick={() => api.taskStop()}>⏹ Ende</button>}
         <span className="tt-time">
-          {mmss(spent)}{plannedSec ? <span className="muted"> / {mmss(plannedSec)}</span> : null}
-          {over ? <span className="tt-over"> +{mmss(spent - plannedSec)}</span> : null}
+          {isBreak
+            ? (finished
+                ? <span className="tt-break-done">Pause vorbei ✓</span>
+                : <><strong>{mmss(remaining)}</strong><span className="muted"> übrig</span></>)
+            : <>{mmss(spent)}{plannedSec ? <span className="muted"> / {mmss(plannedSec)}</span> : null}{over ? <span className="tt-over"> +{mmss(spent - plannedSec)}</span> : null}</>}
         </span>
         {(spent > 0 || isActive) && (
           <button className="btn ghost tt-btn" type="button" title="Timer zurücksetzen" onClick={() => api.taskResetTimer(item.id)}>↺</button>
@@ -1549,28 +1569,34 @@ function PhaseTimer({ phases = [], repeat = 1, onAcknowledge }) {
 function FocusOverlay({ item, api }) {
   const timers = api.state.timers;
   const isActive = timers?.activeId === item.id;
+  const isBreak = !!item.isBreak;
   useNow(true);
   const spent = liveSpentSec(item, timers);
   const plannedSec = (Number(item.durationMin) || 0) * 60;
-  const remain = plannedSec ? plannedSec - spent : null;
+  const remain = plannedSec ? Math.max(0, plannedSec - spent) : null;
   const pct = plannedSec > 0 ? Math.min(100, (spent / plannedSec) * 100) : 0;
   const over = plannedSec > 0 && spent > plannedSec;
-  const barState = !plannedSec ? "none" : over ? "over" : pct >= 80 ? "warn" : "ok";
+  const finished = plannedSec > 0 && spent >= plannedSec;
+  const barState = isBreak ? "break" : (!plannedSec ? "none" : over ? "over" : pct >= 80 ? "warn" : "ok");
 
   const close = () => api.setFocus(null);
   const finish = () => { api.taskStop(); api.plannerToggle("today", item.id); api.setFocus(null); };
 
   return (
-    <div className="focus-overlay" role="dialog" aria-modal="true">
+    <div className={`focus-overlay ${isBreak ? "is-break" : ""}`} role="dialog" aria-modal="true">
       <button className="focus-close" onClick={close} aria-label="Schließen">✕</button>
       <div className="focus-inner">
-        <div className="focus-label">Jetzt-Modus · nur diese eine Sache</div>
-        <h1 className="focus-title">{item.title || "Ohne Titel"}</h1>
-        <div className={`focus-clock ${over ? "over" : ""}`}>
-          {plannedSec && remain !== null ? (over ? `+${mmss(spent - plannedSec)}` : mmss(remain)) : mmss(spent)}
+        <div className="focus-label">{isBreak ? "Pause · kurz durchatmen 🌿" : "Jetzt-Modus · nur diese eine Sache"}</div>
+        <h1 className="focus-title">{isBreak ? (item.title || "Pause") : (item.title || "Ohne Titel")}</h1>
+        <div className={`focus-clock ${over && !isBreak ? "over" : ""} ${isBreak ? "break" : ""} ${isBreak && finished ? "done" : ""}`}>
+          {isBreak
+            ? (finished ? "00:00" : mmss(remain ?? plannedSec))
+            : (plannedSec && remain !== null ? (over ? `+${mmss(spent - plannedSec)}` : mmss(remain)) : mmss(spent))}
         </div>
         <div className="focus-sub">
-          {plannedSec ? (over ? "über der geplanten Zeit – alles gut, bleib dran" : `von ${mmss(plannedSec)} geplant · ${mmss(spent)} gearbeitet`) : `${mmss(spent)} gearbeitet`}
+          {isBreak
+            ? (finished ? "Pause vorbei – bereit für den nächsten Block" : `${mmss(plannedSec)} Pause · läuft runter`)
+            : (plannedSec ? (over ? "über der geplanten Zeit – alles gut, bleib dran" : `von ${mmss(plannedSec)} geplant · ${mmss(spent)} gearbeitet`) : `${mmss(spent)} gearbeitet`)}
         </div>
         {plannedSec > 0 && (
           <div className="tt-bar focus-bar"><div className={`tt-fill s-${barState}`} style={{ width: `${over ? 100 : pct}%` }} /></div>
@@ -1579,7 +1605,7 @@ function FocusOverlay({ item, api }) {
           {!isActive
             ? <button className="btn btn-primary focus-btn" onClick={() => api.taskStart(item.id)}>▶ Start</button>
             : <button className="btn focus-btn focus-pause" onClick={() => api.taskStop()}>⏸ Pause</button>}
-          <button className="btn btn-primary focus-btn" onClick={finish}>✓ Erledigt</button>
+          <button className="btn btn-primary focus-btn" onClick={finish}>{isBreak ? "✓ Pause beendet" : "✓ Erledigt"}</button>
         </div>
         <button className="focus-exit" onClick={close}>← Zurück zur Übersicht</button>
       </div>
