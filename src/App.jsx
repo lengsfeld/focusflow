@@ -466,9 +466,11 @@ const autoPlanToday = (overrideMinutes) => {
 
   const scoreFromAnswers = (a) => {
     if (a?.type === "adhd") {
-      const vals = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood"].map(k => +a[k] || 0);
+      // "loud" (Lautstärke) ist ein neutraler Marker und zählt NICHT in den Score
+      const keys = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood", "procrast"];
+      const vals = keys.map(k => (Number.isFinite(+a[k]) ? +a[k] : 3));
       const sum = vals.reduce((x, y) => x + y, 0);
-      return Math.round((sum / (8 * 5)) * 100);
+      return Math.round((sum / (keys.length * 5)) * 100);
     }
     if (typeof a.score === "number") return a.score;
     const sum = (a.sleep + a.energy + a.focus + (6 - a.stress) + (6 - a.stimuli));
@@ -725,7 +727,7 @@ export default function App() {
         {state.ui.route === "inbox" && <InboxView state={state} api={api} />}
         {state.ui.route === "stress" && <StressView onAcknowledge={api.touchStressNudge} />}
         {state.ui.route === "journal" && <JournalView state={state} api={api} />}
-        {state.ui.route === "checkin" && <CheckinView api={api} last={state.checkins[0]} />}
+        {state.ui.route === "checkin" && <CheckinView api={api} last={state.checkins[0]} checkins={state.checkins} />}
         {state.ui.route === "review" && <ReviewView state={state} api={api} />}
       </div>
 
@@ -1841,50 +1843,72 @@ function JournalView({ state, api }) {
 /* =========================================================
    Check-in
    ========================================================= */
-function CheckinView({ api, last }) {
-  const [vals, setVals] = useState({ focus: 3, thoughts: 3, tension: 3, stimuli: 3, impulse: 3, social: 3, energy: 3, mood: 3 });
-  const setVal = (k, v) => setVals(s => ({ ...s, [k]: +v }));
+const CHECK_QUESTIONS = [
+  { k: "focus",    label: "Fokus auf Aufgabe",            lo: "zerstreut",    hi: "konzentriert" },
+  { k: "thoughts", label: "Gedankenruhe (wenig Tab-Chaos)", lo: "Gedankenflut", hi: "klar" },
+  { k: "tension",  label: "Körper locker",               lo: "verspannt",    hi: "entspannt" },
+  { k: "stimuli",  label: "Reize abschirmen",            lo: "überreizt",    hi: "abgeschirmt" },
+  { k: "impulse",  label: "Beim Thema bleiben",          lo: "sprunghaft",   hi: "dranbleibend" },
+  { k: "social",   label: "Soziale Batterie",            lo: "leer",         hi: "voll" },
+  { k: "energy",   label: "Energie",                     lo: "müde",         hi: "wach" },
+  { k: "mood",     label: "Stimmung / Frusttoleranz",    lo: "gereizt",      hi: "gelassen" },
+  { k: "procrast", label: "Angefangen statt aufgeschoben", lo: "aufgeschoben", hi: "losgelegt" },
+];
+const CHECK_SCORED = CHECK_QUESTIONS.map(q => q.k);
 
-  const score = useMemo(() => { const sum = Object.values(vals).reduce((a, b) => a + b, 0); return Math.round((sum / (8 * 5)) * 100); }, [vals]);
+function CheckinView({ api, last, checkins = [] }) {
+  const [vals, setVals] = useState({ focus: 3, thoughts: 3, tension: 3, stimuli: 3, impulse: 3, social: 3, energy: 3, mood: 3, procrast: 3, loud: 3 });
+  const setVal = (k, v) => setVals(s => ({ ...s, [k]: +v }));
+  const [savedMsg, setSavedMsg] = useState(false);
+
+  const score = useMemo(() => {
+    const sum = CHECK_SCORED.reduce((a, k) => a + (Number(vals[k]) || 0), 0);
+    return Math.round((sum / (CHECK_SCORED.length * 5)) * 100);
+  }, [vals]);
   const adv = useMemo(() => computeAdviceADHD(vals), [vals]);
   const band = useMemo(() => scoreBand(score), [score]);
 
+  const save = () => { api.addCheckin({ type: "adhd", ...vals }); setSavedMsg(true); setTimeout(() => setSavedMsg(false), 2500); };
+
   return (
     <>
-      <h2 className="h1"> Micro-Check-in</h2>
+      <h2 className="h1">Micro-Check-in</h2>
       <div className="row gap mt8">
         <span className={`badge metric band-${band.label.toLowerCase().replace(/\s+/g, '-')}`}>Score {score}</span>
-        <span className="muted">Status: {band.label} — {band.tone}. {band.label === "hoch belastet" ? "Atme 3x ruhig, dann ein Mini-Schritt (2–5 Min)." : band.label === "angespannt" ? "Kleine Struktur hilft: 5–10 Min Fokus-Sprint starten." : band.label === "solide" ? "Sieht gut aus: Plane den nächsten 15-Min-Block." : "Top: Kurs halten – danach kleine Belohnung einplanen."}</span>
+        <span className="muted">Status: {band.label} — {band.tone}.</span>
       </div>
 
       <div className="card">
-        <ScaleADHD label="Fokus auf Aufgabe" value={vals.focus} set={v => setVal("focus", v)} />
-        <ScaleADHD label="Gedankenflut (Tabs im Kopf)" value={vals.thoughts} set={v => setVal("thoughts", v)} />
-        <ScaleADHD label="Körperanspannung (locker?)" value={vals.tension} set={v => setVal("tension", v)} />
-        <ScaleADHD label="Reizpegel abschirmen" value={vals.stimuli} set={v => setVal("stimuli", v)} />
-        <ScaleADHD label="Beim Thema bleiben (Impulsdrang gering?)" value={vals.impulse} set={v => setVal("impulse", v)} />
-        <ScaleADHD label="Soziale Batterie" value={vals.social} set={v => setVal("social", v)} />
-        <ScaleADHD label="Energie" value={vals.energy} set={v => setVal("energy", v)} />
-        <ScaleADHD label="Stimmung/Frusttoleranz" value={vals.mood} set={v => setVal("mood", v)} />
+        {CHECK_QUESTIONS.map(q => (
+          <ScaleADHD key={q.k} label={q.label} lo={q.lo} hi={q.hi} value={vals[q.k]} set={v => setVal(q.k, v)} />
+        ))}
+
+        <div className="scale-divider" />
+        <ScaleADHD label="Lautstärke — wie „laut“ fühl ich mich heute?" lo="ganz leise" hi="voll aufgedreht" value={vals.loud} set={v => setVal("loud", v)} marker />
+        <p className="muted">Neutraler Marker: zählt nicht in den Score, taucht aber im Verlauf auf.</p>
+
         <div className="row between mt8">
           <strong>Score: {score}/100</strong>
-          <button className="btn btn-primary" onClick={() => { api.addCheckin({ type: "adhd", ...vals }); alert("Check-in gespeichert."); }}>Speichern</button>
+          <button className="btn btn-primary" onClick={save}>Speichern</button>
         </div>
+        {savedMsg && <p className="muted mt6">✓ Gespeichert.</p>}
       </div>
 
       <div className="card">
         <strong>Empfehlungen</strong>
-        <p className="muted">Zugeschnitten auf deine niedrigsten Werte — nach ADHS-Wissensstand.</p>
+        <p className="muted">Zugeschnitten auf deine schwächsten Werte — nach ADHS-Wissensstand.</p>
         <ul className="list mt8">
           {adv.map((a, i) => (
             <li key={i} className="item advice">
               <div className="title">💡 {a.title}</div>
               <div className="muted mt6">{a.why}</div>
+              {a.how && <div className="advice-how mt6">→ {a.how}</div>}
             </li>
           ))}
         </ul>
-        <div className="row mt8"><a className="btn" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Nach oben</a></div>
       </div>
+
+      <CheckinHistory checkins={checkins} />
 
       {last && (<div className="card"><strong>Letzter Check-in</strong><p className="muted">{new Date(last.dateISO).toLocaleString()} · Score {last.score}/100</p></div>)}
     </>
@@ -1899,13 +1923,59 @@ function scaleWord(v) {
   return "sehr gut";
 }
 
-function ScaleADHD({ label, value, set }) {
+function ScaleADHD({ label, value, set, lo, hi, marker }) {
   return (
-    <div className="scale">
-      <div className="scale-label">{label}</div>
+    <div className={`scale-wrap ${marker ? "marker" : ""}`}>
+      <div className="scale-head">
+        <span className="scale-label2">{label}</span>
+        <span className="badge metric">{Number(value).toFixed(1)}</span>
+        <span className="scale-word muted">{scaleWord(Number(value))}</span>
+      </div>
       <input type="range" min="1" max="5" step="0.5" value={value} onChange={e => set(e.target.value)} className="range color" />
-      <span className="badge metric">{Number(value).toFixed(1)}</span>
-      <span className="scale-word muted">{scaleWord(Number(value))}</span>
+      {(lo || hi) && <div className="scale-anchors muted"><span>{lo}</span><span>{hi}</span></div>}
+    </div>
+  );
+}
+
+/* ---------- Check-in Verlauf ---------- */
+function CheckinHistory({ checkins = [] }) {
+  const adhd = checkins.filter(c => c.answers?.type === "adhd");
+  if (!adhd.length) {
+    return (
+      <div className="card">
+        <strong>Verlauf</strong>
+        <p className="muted">Noch keine Check-ins gespeichert. Ab dem ersten Speichern siehst du hier deinen Trend.</p>
+      </div>
+    );
+  }
+  const last = adhd.slice(0, 14).reverse(); // ältester → neuester
+  const scores = last.map(c => Number(c.score) || 0);
+  const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  const meanOf = (key) => {
+    const xs = last.map(c => Number(c.answers?.[key])).filter(n => Number.isFinite(n));
+    return xs.length ? (xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1) : "–";
+  };
+  const trend = scores.length >= 2 ? scores[scores.length - 1] - scores[0] : 0;
+
+  return (
+    <div className="card">
+      <div className="row between"><strong>Verlauf</strong><span className="muted">letzte {last.length} · Ø {avg}</span></div>
+      <div className="hist-bars mt8">
+        {last.map((c, i) => {
+          const sc = Number(c.score) || 0;
+          const bandCls = scoreBand(sc).label.toLowerCase().replace(/\s+/g, '-');
+          return (
+            <div key={c.id || i} className="hist-col" title={`${new Date(c.dateISO).toLocaleDateString()} · Score ${sc}`}>
+              <div className={`hist-bar band-${bandCls}`} style={{ height: `${Math.max(6, Math.round(sc * 0.7))}px` }} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="row wrap mt8">
+        <span className="badge small">Trend {trend > 0 ? `+${trend}` : trend}</span>
+        <span className="badge small">Ø Lautstärke {meanOf("loud")}</span>
+        <span className="badge small">Ø Losgelegt {meanOf("procrast")}</span>
+      </div>
     </div>
   );
 }
@@ -2055,26 +2125,38 @@ function BreathTimer({ totalSeconds = 180, stepSeconds = 4, onAcknowledge }) {
 // Dimensionsbezogene ADHS-Empfehlungen (niedrigste Werte zuerst)
 function computeAdviceADHD(vals = {}) {
   const DIM = {
-    focus:    { title: "Pomodoro + Body-Doubling", why: "25-Min-Timer, Handy außer Reichweite; jemand mit im Raum oder Video-Call senkt den Startwiderstand spürbar." },
-    thoughts: { title: "2-Minuten-Brain-Dump", why: "Alle offenen Gedanken in die Inbox schreiben — entlastet das Arbeitsgedächtnis, das bei ADHS schneller überläuft." },
-    tension:  { title: "Physiologischer Seufzer", why: "Zweimal einatmen, lang ausatmen, 6–8×. Beruhigt das Nervensystem in ein bis zwei Minuten." },
-    stimuli:  { title: "Reizarme Zone bauen", why: "Kopfhörer/Noise, Benachrichtigungen aus, Sichtfeld aufräumen — weniger Reize, weniger Abschweifen." },
-    impulse:  { title: "Wenn-Dann-Plan", why: "‚Wenn ich abschweife, dann notiere ich eine Zeile und kehre zurück.' Solche Vorsätze steigern die Handlungsauslösung." },
-    social:   { title: "Solo-Block + Rückzug", why: "Termine bündeln und 20 Min bewusst allein einplanen — schützt die begrenzte soziale Energie." },
-    energy:   { title: "Bewegungs-Snack + Wasser", why: "3–5 Min Bewegung, dazu Wasser/Protein. Kurze Aktivierung hebt Dopamin & Noradrenalin — die zentrale ADHS-Stellschraube." },
-    mood:     { title: "Mini-Win + Selbstmitgefühl", why: "Ein 2-Minuten-Schritt zählt und wird sichtbar abgehakt. Kleine Erfolge stabilisieren Frusttoleranz und Antrieb." },
+    focus:    { title: "Pomodoro + Body-Doubling", why: "25-Min-Timer, Handy außer Reichweite; jemand mit im Raum oder Video-Call senkt den Startwiderstand spürbar.", how: "Stell einen 25-Min-Timer, leg das Handy in einen anderen Raum und starte im Jetzt-Modus." },
+    thoughts: { title: "2-Minuten-Brain-Dump", why: "Alle offenen Gedanken in die Inbox schreiben entlastet das Arbeitsgedächtnis, das bei ADHS schneller überläuft.", how: "Öffne die Inbox und kipp 2 Min lang alles rein, was im Kopf kreist – ungefiltert." },
+    tension:  { title: "Physiologischer Seufzer", why: "Zweimal einatmen, lang ausatmen, 6–8×. Beruhigt das Nervensystem in ein bis zwei Minuten.", how: "Geh zu Übungen → Physio-Seufzer und mach die geführten Runden mit." },
+    stimuli:  { title: "Reizarme Zone bauen", why: "Kopfhörer/Noise, Benachrichtigungen aus, Sichtfeld aufräumen — weniger Reize, weniger Abschweifen.", how: "Kopfhörer auf, Handy stumm, nur das aktuelle Fenster offen lassen." },
+    impulse:  { title: "Wenn-Dann-Plan", why: "‚Wenn ich abschweife, dann notiere ich eine Zeile und kehre zurück.' Solche Vorsätze steigern die Handlungsauslösung.", how: "Schreib dir vorab einen konkreten Wenn-Dann-Satz auf und leg ihn sichtbar hin." },
+    social:   { title: "Solo-Block + Rückzug", why: "Termine bündeln und 20 Min bewusst allein einplanen schützt die begrenzte soziale Energie.", how: "Blockiere 20 Min ohne Termine und plane davor eine kurze Pause ein." },
+    energy:   { title: "Bewegungs-Snack + Wasser", why: "3–5 Min Bewegung plus Wasser/Protein: kurze Aktivierung hebt Dopamin & Noradrenalin — die zentrale ADHS-Stellschraube.", how: "3–5 Min bewegen (Treppe, Hampelmänner), ein Glas Wasser, dann der erste Mini-Schritt." },
+    mood:     { title: "Mini-Win + Selbstmitgefühl", why: "Ein 2-Minuten-Schritt zählt und wird sichtbar abgehakt. Kleine Erfolge stabilisieren Frusttoleranz und Antrieb.", how: "Nimm die kleinste offene Aufgabe, mach sie in 2 Min fertig und hak sie sichtbar ab." },
+    procrast: { title: "2-Minuten-Regel gegen Aufschieben", why: "Der Start ist bei ADHS die größte Hürde, nicht die Aufgabe selbst. Ein winziger erster Schritt umgeht die Blockade.", how: "Zerleg die Aufgabe, bis der erste Schritt ≤2 Min dauert, und starte nur diesen." },
   };
-  const order = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood"];
+  const order = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood", "procrast"];
   const low = order
     .map(k => ({ k, v: Number(vals[k]) || 0 }))
     .filter(x => x.v <= 3)
     .sort((a, b) => a.v - b.v)
     .slice(0, 3)
     .map(x => DIM[x.k]);
-  if (!low.length) {
-    return [{ title: "Kurs halten", why: "Alles im grünen Bereich — plane den nächsten Fokusblock und danach eine kleine Belohnung." }];
+
+  // Lautstärke: neutraler Marker – nur bei hohem Wert ein Regulierungs-Tipp
+  const loud = Number(vals.loud) || 0;
+  if (loud >= 4) {
+    low.push({
+      title: "Runterregulieren bei „laut“",
+      why: "Ein hoher innerer Lautstärke-/Aktivierungspegel ist bei ADHS oft Überstimulation. Gezieltes Auslasten wirkt besser als Gegenhalten.",
+      how: "Kanalisier die Energie: 5 Min zügige Bewegung, danach Box-Breathing – erst rauf, dann runter."
+    });
   }
-  return low;
+
+  if (!low.length) {
+    return [{ title: "Kurs halten", why: "Alles im grünen Bereich — plane den nächsten Fokusblock und danach eine kleine Belohnung.", how: "Setz dir den nächsten 20-Min-Block und leg eine konkrete Belohnung danach fest." }];
+  }
+  return low.slice(0, 4);
 }
 
 // Empfehlungen nur noch aus dem Gesamtscore (0..100)
