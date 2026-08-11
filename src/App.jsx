@@ -37,11 +37,13 @@ const INITIAL = {
   journal: [],
   checkins: [],
   nudges: { lastStressISO: null },
+  timers: { activeId: null, startedAt: null }, // laufender Aufgaben-Timer
   settings: {
     dayMinutes: 480,   // Arbeitstag in Minuten (8h) – per Slider 60..720
     breakMinutes: 10,  // Pausenlänge
     maxNoBreak: 90,     // harte Obergrenze ohne Pause (1,5h)
-    longBreakMinutes: 45
+    longBreakMinutes: 45,
+    dayStart: "09:00"   // Startuhrzeit für den Zeitstrahl
   },
   ui: {
     route: "home" // wird persistiert
@@ -62,6 +64,43 @@ const prioLabel = (p) => PRIO_LABEL[p ?? null] || "ohne Prio";
 /* ---------- Date Utils ---------- */
 const parseDateOnly = (isoDate) => new Date(`${isoDate}T00:00:00`);
 const fmtDate = (isoDate) => (isoDate ? parseDateOnly(isoDate).toLocaleDateString() : "");
+
+/* ---------- Time Utils (Zeitstrahl & Timer) ---------- */
+const hhmmToMin = (s) => {
+  const [h, m] = String(s || "09:00").split(":").map(n => parseInt(n, 10));
+  return (h || 0) * 60 + (m || 0);
+};
+const minToHHMM = (min) => {
+  const t = ((Math.round(min) % 1440) + 1440) % 1440;
+  const h = Math.floor(t / 60), m = t % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+// Aus der (nach order sortierten) Today-Liste Start/Ende je Eintrag berechnen
+function computeSchedule(list = [], dayStart = "09:00") {
+  let cursor = hhmmToMin(dayStart);
+  const sorted = [...list].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return sorted.map(it => {
+    const dur = Math.max(0, Number(it.durationMin) || 0);
+    const startMin = cursor;
+    cursor += dur;
+    return { ...it, startMin, endMin: cursor };
+  });
+}
+// Sekunden → mm:ss
+const mmss = (sec) => {
+  const s = Math.max(0, Math.round(sec));
+  const m = Math.floor(s / 60).toString().padStart(2, "0");
+  const r = (s % 60).toString().padStart(2, "0");
+  return `${m}:${r}`;
+};
+// live verbrauchte Sekunden einer Aufgabe (inkl. laufendem Timer)
+function liveSpentSec(item, timers) {
+  const base = Number(item?.spentSec) || 0;
+  if (timers && timers.activeId === item?.id && timers.startedAt) {
+    return base + Math.max(0, (Date.now() - timers.startedAt) / 1000);
+  }
+  return base;
+}
 
 /* ---------- UI-Label für Navigation ---------- */
 function label(route) {
@@ -436,6 +475,35 @@ const autoPlanToday = (overrideMinutes) => {
 
   const touchStressNudge = () => setState(s => ({ ...s, nudges: { ...s.nudges, lastStressISO: new Date().toISOString() } }));
 
+  /* ---------- Aufgaben-Timer (Start/Ende je Aufgabe) ---------- */
+  const setDayStart = (v) => setState(s => ({ ...s, settings: { ...s.settings, dayStart: v || "09:00" } }));
+
+  const taskStart = (id) => setState(s => {
+    const t = s.timers || { activeId: null, startedAt: null };
+    let today = [...(s.planner.today || [])];
+    // laufenden Timer erst sauber verbuchen
+    if (t.activeId && t.startedAt) {
+      const el = Math.max(0, Math.round((Date.now() - t.startedAt) / 1000));
+      today = today.map(x => x.id === t.activeId ? { ...x, spentSec: (Number(x.spentSec) || 0) + el } : x);
+    }
+    return { ...s, planner: { ...s.planner, today }, timers: { activeId: id, startedAt: Date.now() } };
+  });
+
+  const taskStop = () => setState(s => {
+    const t = s.timers || {};
+    if (!t.activeId || !t.startedAt) return { ...s, timers: { activeId: null, startedAt: null } };
+    const el = Math.max(0, Math.round((Date.now() - t.startedAt) / 1000));
+    const today = (s.planner.today || []).map(x => x.id === t.activeId ? { ...x, spentSec: (Number(x.spentSec) || 0) + el } : x);
+    return { ...s, planner: { ...s.planner, today }, timers: { activeId: null, startedAt: null } };
+  });
+
+  const taskResetTimer = (id) => setState(s => {
+    const t = s.timers || {};
+    const today = (s.planner.today || []).map(x => x.id === id ? { ...x, spentSec: 0 } : x);
+    const timers = t.activeId === id ? { activeId: null, startedAt: null } : t;
+    return { ...s, planner: { ...s.planner, today }, timers };
+  });
+
   /* ---------- Maintenance ---------- */
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -457,9 +525,21 @@ const autoPlanToday = (overrideMinutes) => {
     inboxAdd, inboxRemove, inboxToBacklog,
     // Journal/Checkins
     addJournal, addCheckin,
+    // Aufgaben-Timer
+    setDayStart, taskStart, taskStop, taskResetTimer,
     // Maintenance & Nudges
     exportJson, resetAll, touchStressNudge
   };
+}
+
+/* ---------- Ticker: rendert jede Sekunde neu, wenn aktiv ---------- */
+function useNow(active) {
+  const [, setN] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setN(n => (n + 1) % 1e9), 1000);
+    return () => clearInterval(id);
+  }, [active]);
 }
 
 /* ---------- Migration ---------- */
@@ -492,7 +572,8 @@ function migrate(s) {
       order: typeof it.order === "number" ? it.order : 0,
       durationMin: typeof it.durationMin === "number" ? it.durationMin : (it.isBreak ? (it.durationMin || 10) : null),
       dueISO: typeof it.dueISO === "string" ? it.dueISO : null,
-      isBreak: !!it.isBreak
+      isBreak: !!it.isBreak,
+      spentSec: Number(it.spentSec) || 0
     }));
   }
 
@@ -501,6 +582,9 @@ function migrate(s) {
   out.journal ||= [];
   out.checkins ||= [];
   out.nudges ||= { lastStressISO: null };
+  out.timers ||= { activeId: null, startedAt: null };
+  out.settings ||= clone(INITIAL.settings);
+  if (!out.settings.dayStart) out.settings.dayStart = "09:00";
 
   return out;
 }
@@ -668,6 +752,7 @@ const sortedToday = useMemo(() => {
           {sortedToday.map(it => (
             <PlannerRow
               key={it.id}
+              api={api}
               list="today"
               item={it}
               onToggle={(id) => api.plannerToggle("today", id)}
@@ -684,6 +769,12 @@ const sortedToday = useMemo(() => {
           <button className="btn btn-primary" onClick={() => go("planner")}>Plan bearbeiten</button>
           <button className="btn" onClick={() => go("stress")}>3-Min Atemübung</button>
         </div>
+      </div>
+
+      <div className="card">
+        <strong>Zeitstrahl heute</strong>
+        <p className="muted">Start {state.settings.dayStart || "09:00"} · geplante Uhrzeiten je Aufgabe</p>
+        <DayTimeline today={state.planner.today} dayStart={state.settings.dayStart} timers={state.timers} />
       </div>
 
       <div className="grid two">
@@ -713,16 +804,16 @@ const sortedToday = useMemo(() => {
 
 /* --- Minimaler Row-Renderer nur fürs Dashboard --- */
 /* --- Minimaler Row-Renderer nur fürs Dashboard (übersichtlich) --- */
-function _PlannerRowMini({ item, onToggle }) {
-  // Pause kompakt darstellen
+function _PlannerRowMini({ item, onToggle, api }) {
+  // Pause kompakt darstellen (positiv gerahmt)
   if (item.isBreak) {
     return (
-      <li className="item overview-task">
+      <li className="item overview-task is-break">
         <div className="row top">
-          <span className="task-title">☕ Pause</span>
+          <span className="task-title">🌿 {item.title || "Pause"}</span>
         </div>
         <div className="row meta">
-          <span className="badge small">⏱ {item.durationMin || 10} Min</span>
+          <span className="badge small break-badge">⏱ {item.durationMin || 10} Min · Erholung</span>
         </div>
       </li>
     );
@@ -769,6 +860,10 @@ function _PlannerRowMini({ item, onToggle }) {
           {item.dueISO ? `📅 ${fmtDate(item.dueISO)}` : ""}
         </span>
       </div>
+
+      {api && !item.done && (
+        <TaskTimer item={item} timers={api.state.timers} api={api} compact />
+      )}
     </li>
   );
 }
@@ -828,9 +923,27 @@ function PlannerView({ state, api }) {
             Pausen neu verteilen
           </button>
         </div>
+        <div className="row wrap mt8" style={{ alignItems: "center" }}>
+          <label className="muted" htmlFor="dayStart">Tagesstart (Zeitstrahl):</label>
+          <input
+            id="dayStart"
+            className="input"
+            type="time"
+            value={state.settings.dayStart || "09:00"}
+            onChange={e => api.setDayStart(e.target.value)}
+            style={{ maxWidth: 130 }}
+          />
+        </div>
         <p className="muted mt6">
           Nach jeweils 1,5 h Arbeit wird automatisch eine Pause ({state.settings.breakMinutes} Min) eingefügt.
         </p>
+      </div>
+
+      {/* Zeitstrahl */}
+      <div className="card">
+        <strong>Zeitstrahl heute</strong>
+        <p className="muted">Ab {state.settings.dayStart || "09:00"} · Start/Ende jeder Aufgabe direkt in der Liste unten.</p>
+        <DayTimeline today={state.planner.today} dayStart={state.settings.dayStart} timers={state.timers} />
       </div>
 
       {/* Zeitbudget */}
@@ -1269,7 +1382,140 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
         )}
         <button className="btn" onClick={() => onDelete(item.id)} type="button">Löschen</button>
       </div>
+
+      {/* Live-Timer nur im Tagesplan (Heute) */}
+      {list === "today" && !item.done && (
+        <TaskTimer item={item} timers={api.state.timers} api={api} />
+      )}
     </li>
+  );
+}
+
+/* =========================================================
+   Aufgaben-Timer (Start/Ende je Aufgabe) + Countdown-Balken
+   ========================================================= */
+function TaskTimer({ item, timers, api, compact }) {
+  const isActive = timers?.activeId === item.id;
+  useNow(isActive);
+  const spent = liveSpentSec(item, timers);
+  const plannedSec = (Number(item.durationMin) || 0) * 60;
+  const pct = plannedSec > 0 ? Math.min(100, (spent / plannedSec) * 100) : 0;
+  const over = plannedSec > 0 && spent > plannedSec;
+  const barState = !plannedSec ? "none" : over ? "over" : pct >= 80 ? "warn" : "ok";
+
+  return (
+    <div className={`tasktimer ${isActive ? "running" : ""} ${compact ? "compact" : ""}`}>
+      <div className="tasktimer-row">
+        {!isActive
+          ? <button className="btn btn-primary tt-btn" type="button" onClick={() => api.taskStart(item.id)}>▶ Start</button>
+          : <button className="btn tt-btn tt-stop" type="button" onClick={() => api.taskStop()}>⏹ Ende</button>}
+        <span className="tt-time">
+          {mmss(spent)}{plannedSec ? <span className="muted"> / {mmss(plannedSec)}</span> : null}
+          {over ? <span className="tt-over"> +{mmss(spent - plannedSec)}</span> : null}
+        </span>
+        {(spent > 0 || isActive) && (
+          <button className="btn ghost tt-btn" type="button" title="Timer zurücksetzen" onClick={() => api.taskResetTimer(item.id)}>↺</button>
+        )}
+      </div>
+      {plannedSec > 0 && (
+        <div className="tt-bar"><div className={`tt-fill s-${barState}`} style={{ width: `${over ? 100 : pct}%` }} /></div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   Zeitstrahl – Tagesplan als visuelle Zeitachse
+   ========================================================= */
+function DayTimeline({ today, dayStart, timers }) {
+  const sched = useMemo(() => computeSchedule(today || [], dayStart), [today, dayStart]);
+  useNow(!!timers?.activeId);
+  if (!sched.length) return <div className="muted">Noch nichts geplant – erstelle einen Tagesplan.</div>;
+  const endLabel = minToHHMM(sched[sched.length - 1].endMin);
+  return (
+    <div className="timeline">
+      {sched.map(it => {
+        const active = timers?.activeId === it.id;
+        const cls = it.isBreak ? "tl-break" : (it.done ? "tl-done" : "tl-task");
+        return (
+          <div key={it.id} className={`tl-row ${cls} ${active ? "tl-active" : ""}`}>
+            <div className="tl-time">{minToHHMM(it.startMin)}</div>
+            <div className="tl-track"><span className="tl-dot" /></div>
+            <div className="tl-body">
+              <div className="tl-title">{it.isBreak ? `🌿 ${it.title || "Pause"}` : (it.title || "Ohne Titel")}</div>
+              <div className="tl-meta muted">{minToHHMM(it.startMin)}–{minToHHMM(it.endMin)} · {Math.max(0, Number(it.durationMin) || 0)} Min{active ? " · läuft ⏱" : ""}</div>
+            </div>
+          </div>
+        );
+      })}
+      <div className="tl-row tl-end">
+        <div className="tl-time">{endLabel}</div>
+        <div className="tl-track"><span className="tl-dot end" /></div>
+        <div className="tl-body"><div className="tl-title muted">Feierabend 🎉</div></div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   PhaseTimer – geführter Timer für Atem-/Reset-Übungen
+   ========================================================= */
+function PhaseTimer({ phases = [], repeat = 1, onAcknowledge }) {
+  const seq = useMemo(() => {
+    const arr = [];
+    for (let r = 0; r < Math.max(1, repeat); r++) phases.forEach(p => arr.push(p));
+    return arr;
+  }, [phases, repeat]);
+  const totalSec = useMemo(() => seq.reduce((a, p) => a + (p.seconds || 0), 0), [seq]);
+  const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const tickRef = useRef(null);
+
+  useEffect(() => {
+    if (!running) { if (tickRef.current) clearInterval(tickRef.current); return; }
+    tickRef.current = setInterval(() => {
+      setElapsed(t => {
+        const next = t + 1;
+        if (next >= totalSec) { clearInterval(tickRef.current); setRunning(false); onAcknowledge?.(); return totalSec; }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(tickRef.current);
+  }, [running, totalSec, onAcknowledge]);
+
+  // aktuelle Phase bestimmen
+  let acc = 0, idx = 0, into = 0;
+  for (let i = 0; i < seq.length; i++) {
+    const len = seq[i].seconds || 0;
+    if (elapsed < acc + len || i === seq.length - 1) { idx = i; into = elapsed - acc; break; }
+    acc += len;
+  }
+  const cur = seq[idx] || { label: "—", seconds: 0 };
+  const remainInPhase = Math.max(0, (cur.seconds || 0) - into);
+  const phaseProg = cur.seconds ? Math.min(1, into / cur.seconds) : 0;
+  const done = elapsed >= totalSec;
+  const cycleLen = phases.length;
+  const roundNo = cycleLen ? Math.floor(idx / cycleLen) + 1 : 1;
+
+  return (
+    <div className="nudge">
+      <div className="timer-head">
+        <div className="timer-big">{done ? "Fertig ✓" : cur.label}</div>
+        <div className="timer-sub">
+          {done ? `${mmss(totalSec)} gesamt` : `noch ${remainInPhase}s · ${mmss(totalSec - elapsed)} verbleibend`}
+          {repeat > 1 && !done ? ` · Runde ${Math.min(roundNo, repeat)}/${repeat}` : ""}
+        </div>
+      </div>
+      <div className="phase-bar"><div style={{ width: `${phaseProg * 100}%` }} /></div>
+      <div className="progress"><div className="progress-bar" style={{ width: `${totalSec ? (elapsed / totalSec) * 100 : 0}%` }} /></div>
+      <div className="row mt8">
+        {!running && elapsed === 0 && <button className="btn btn-primary" onClick={() => setRunning(true)}>Start</button>}
+        {running && <button className="btn" onClick={() => setRunning(false)}>Pause</button>}
+        {!running && elapsed > 0 && elapsed < totalSec && <button className="btn btn-primary" onClick={() => setRunning(true)}>Weiter</button>}
+        <button className="btn" onClick={() => { setRunning(false); setElapsed(0); }}>Reset</button>
+        <button className="btn" onClick={onAcknowledge}>Fertig</button>
+      </div>
+    </div>
   );
 }
 
@@ -1379,7 +1625,7 @@ function CheckinView({ api, last }) {
   const setVal = (k, v) => setVals(s => ({ ...s, [k]: +v }));
 
   const score = useMemo(() => { const sum = Object.values(vals).reduce((a, b) => a + b, 0); return Math.round((sum / (8 * 5)) * 100); }, [vals]);
-  const adv = useMemo(() => computeAdviceFromScore(score), [score]);
+  const adv = useMemo(() => computeAdviceADHD(vals), [vals]);
   const band = useMemo(() => scoreBand(score), [score]);
 
   return (
@@ -1407,8 +1653,14 @@ function CheckinView({ api, last }) {
 
       <div className="card">
         <strong>Empfehlungen</strong>
+        <p className="muted">Zugeschnitten auf deine niedrigsten Werte — nach ADHS-Wissensstand.</p>
         <ul className="list mt8">
-          {adv.length ? adv.map((t, i) => <li key={i} className="item"><div className="title">{t}</div></li>) : <div className="muted">Alles im grünen Bereich.</div>}
+          {adv.map((a, i) => (
+            <li key={i} className="item advice">
+              <div className="title">💡 {a.title}</div>
+              <div className="muted mt6">{a.why}</div>
+            </li>
+          ))}
         </ul>
         <div className="row mt8"><a className="btn" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Nach oben</a></div>
       </div>
@@ -1418,12 +1670,21 @@ function CheckinView({ api, last }) {
   );
 }
 
+function scaleWord(v) {
+  if (v <= 1.5) return "sehr niedrig";
+  if (v <= 2.5) return "niedrig";
+  if (v <= 3.5) return "mittel";
+  if (v <= 4.5) return "gut";
+  return "sehr gut";
+}
+
 function ScaleADHD({ label, value, set }) {
   return (
     <div className="scale">
       <div className="scale-label">{label}</div>
-      <input type="range" min="1" max="5" value={value} onChange={e => set(e.target.value)} className="range color" />
-      <span className="badge metric">{value}</span>
+      <input type="range" min="1" max="5" step="0.5" value={value} onChange={e => set(e.target.value)} className="range color" />
+      <span className="badge metric">{Number(value).toFixed(1)}</span>
+      <span className="scale-word muted">{scaleWord(Number(value))}</span>
     </div>
   );
 }
@@ -1445,10 +1706,54 @@ function StressView({ onAcknowledge }) {
       </div>
       <div className="mt8">
         {mode === "box" && (<><h3 className="h1">Atem-Übung (Box Breathing)</h3><BreathTimer totalSeconds={180} stepSeconds={4} onAcknowledge={onAcknowledge} /></>)}
-        {mode === "478" && (<SimpleExercise title="4-7-8 Atmung (≈1–3 Min)" steps={["4 Sekunden ruhig einatmen durch die Nase.", "7 Sekunden Atem halten.", "8 Sekunden langsam durch den Mund ausatmen (leise).", "4 Zyklen wiederholen."]} />)}
-        {mode === "sigh" && (<SimpleExercise title="Physiologischer Seufzer (≈1–2 Min)" steps={["Zweifach einatmen (Nase + Mini-Zusatzeinzug oben).", "Dann langsam gleichmäßig durch den Mund ausatmen.", "10–15 Wiederholungen."]} />)}
-        {mode === "pmr" && (<SimpleExercise title="Mini-PMR (≈2 Min)" steps={["Schultern 5–7 Sekunden an- und dann entspannen (10–15 Sek. nachspüren).", "Kiefer sanft pressen 5 Sekunden, dann lösen.", "2–3 Durchgänge, danach kurz nachspüren."]} />)}
-        {mode === "eyes" && (<SimpleExercise title="Augen-Reset (≈1 Min)" steps={["20–30 Sekunden in die Ferne schauen (≥6 m).", "10 mal blinzeln, Blick weich werden lassen.", "Zum Schluss 5 ruhige Atemzüge durch die Nase."]} />)}
+        {mode === "478" && (<>
+          <h3 className="h1">4-7-8 Atmung (≈1 Min · 4 Runden)</h3>
+          <PhaseTimer
+            repeat={4}
+            phases={[
+              { label: "Einatmen durch die Nase", seconds: 4 },
+              { label: "Atem halten", seconds: 7 },
+              { label: "Langsam durch den Mund ausatmen", seconds: 8 },
+            ]}
+            onAcknowledge={onAcknowledge}
+          />
+        </>)}
+        {mode === "sigh" && (<>
+          <h3 className="h1">Physiologischer Seufzer (≈2 Min · 8 Runden)</h3>
+          <PhaseTimer
+            repeat={8}
+            phases={[
+              { label: "Doppelt einatmen (Nase + kleiner Zusatzzug)", seconds: 4 },
+              { label: "Lang & gleichmäßig ausatmen (Mund)", seconds: 6 },
+            ]}
+            onAcknowledge={onAcknowledge}
+          />
+        </>)}
+        {mode === "pmr" && (<>
+          <h3 className="h1">Mini-PMR (≈1,5 Min · 2 Runden)</h3>
+          <PhaseTimer
+            repeat={2}
+            phases={[
+              { label: "Schultern anspannen", seconds: 6 },
+              { label: "Loslassen & nachspüren", seconds: 12 },
+              { label: "Kiefer sanft pressen", seconds: 5 },
+              { label: "Loslassen & nachspüren", seconds: 12 },
+            ]}
+            onAcknowledge={onAcknowledge}
+          />
+        </>)}
+        {mode === "eyes" && (<>
+          <h3 className="h1">Augen-Reset (≈1 Min)</h3>
+          <PhaseTimer
+            repeat={1}
+            phases={[
+              { label: "In die Ferne schauen (≥6 m)", seconds: 25 },
+              { label: "10× blinzeln, Blick weich werden lassen", seconds: 10 },
+              { label: "5 ruhige Atemzüge durch die Nase", seconds: 20 },
+            ]}
+            onAcknowledge={onAcknowledge}
+          />
+        </>)}
       </div>
     </div>
   );
@@ -1517,6 +1822,31 @@ function BreathTimer({ totalSeconds = 180, stepSeconds = 4, onAcknowledge }) {
 }
 
 /* ---------- Helpers ---------- */
+
+// Dimensionsbezogene ADHS-Empfehlungen (niedrigste Werte zuerst)
+function computeAdviceADHD(vals = {}) {
+  const DIM = {
+    focus:    { title: "Pomodoro + Body-Doubling", why: "25-Min-Timer, Handy außer Reichweite; jemand mit im Raum oder Video-Call senkt den Startwiderstand spürbar." },
+    thoughts: { title: "2-Minuten-Brain-Dump", why: "Alle offenen Gedanken in die Inbox schreiben — entlastet das Arbeitsgedächtnis, das bei ADHS schneller überläuft." },
+    tension:  { title: "Physiologischer Seufzer", why: "Zweimal einatmen, lang ausatmen, 6–8×. Beruhigt das Nervensystem in ein bis zwei Minuten." },
+    stimuli:  { title: "Reizarme Zone bauen", why: "Kopfhörer/Noise, Benachrichtigungen aus, Sichtfeld aufräumen — weniger Reize, weniger Abschweifen." },
+    impulse:  { title: "Wenn-Dann-Plan", why: "‚Wenn ich abschweife, dann notiere ich eine Zeile und kehre zurück.' Solche Vorsätze steigern die Handlungsauslösung." },
+    social:   { title: "Solo-Block + Rückzug", why: "Termine bündeln und 20 Min bewusst allein einplanen — schützt die begrenzte soziale Energie." },
+    energy:   { title: "Bewegungs-Snack + Wasser", why: "3–5 Min Bewegung, dazu Wasser/Protein. Kurze Aktivierung hebt Dopamin & Noradrenalin — die zentrale ADHS-Stellschraube." },
+    mood:     { title: "Mini-Win + Selbstmitgefühl", why: "Ein 2-Minuten-Schritt zählt und wird sichtbar abgehakt. Kleine Erfolge stabilisieren Frusttoleranz und Antrieb." },
+  };
+  const order = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood"];
+  const low = order
+    .map(k => ({ k, v: Number(vals[k]) || 0 }))
+    .filter(x => x.v <= 3)
+    .sort((a, b) => a.v - b.v)
+    .slice(0, 3)
+    .map(x => DIM[x.k]);
+  if (!low.length) {
+    return [{ title: "Kurs halten", why: "Alles im grünen Bereich — plane den nächsten Fokusblock und danach eine kleine Belohnung." }];
+  }
+  return low;
+}
 
 // Empfehlungen nur noch aus dem Gesamtscore (0..100)
 function computeAdviceFromScore(score) {
