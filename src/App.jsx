@@ -644,14 +644,18 @@ export default function App() {
     ? state.planner.today.find(t => t.id === state.ui.focusId)
     : null;
 
-  // Mini-Belohnung: kurze Feier, wenn eine Aufgabe fertig wird
-  const [reward, setReward] = useState(null);
+  // Belohnung: große Feier, wenn eine Aufgabe fertig wird
+  const [reward, setReward] = useState(null); // { text, epic, n }
   const prevDoneRef = useRef(todayDone);
   useEffect(() => {
     if (todayDone > prevDoneRef.current) {
       const all = todayTotal > 0 && todayDone >= todayTotal;
-      setReward(all ? "Alles geschafft! 🎉" : pick(["Stark! ✅", "Erledigt 💪", "Nice! 🎉", "Weiter so ⭐", "Geschafft 🙌"]));
-      const id = setTimeout(() => setReward(null), 1800);
+      setReward({
+        text: all ? "Alles geschafft!" : pick(["Stark!", "Erledigt!", "Nice!", "Weiter so!", "Geschafft!", "Boom!"]),
+        epic: all,
+        n: Date.now(), // erzwingt frische Animation
+      });
+      const id = setTimeout(() => setReward(null), all ? 3600 : 2400);
       prevDoneRef.current = todayDone;
       return () => clearTimeout(id);
     }
@@ -727,7 +731,7 @@ export default function App() {
 
       <footer className="footer">© {new Date().getFullYear()} FocusFlow — Lokale Daten</footer>
 
-      {reward && <div className="reward-toast" role="status">{reward}</div>}
+      {reward && <Celebration reward={reward} />}
       {focusItem && <FocusOverlay item={focusItem} api={api} />}
     </div>
   );
@@ -1564,12 +1568,55 @@ function PhaseTimer({ phases = [], repeat = 1, onAcknowledge }) {
 }
 
 /* =========================================================
+   Belohnung – große Konfetti-Feier beim Erledigen
+   ========================================================= */
+function Celebration({ reward }) {
+  const pieces = useMemo(() => {
+    const emojis = ["🎉", "✨", "⭐", "🎊", "💪", "🙌", "🔥", "🌟", "💚", "🏆"];
+    const n = reward.epic ? 70 : 34;
+    return Array.from({ length: n }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.5,
+      dur: 1.8 + Math.random() * 1.6,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+      size: 18 + Math.random() * 26,
+      rot: Math.round((Math.random() * 2 - 1) * 180),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reward.n]);
+
+  return (
+    <div className="celebrate" aria-hidden="true">
+      {pieces.map(p => (
+        <span
+          key={p.id}
+          className="confetti"
+          style={{
+            left: `${p.left}%`,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.dur}s`,
+            fontSize: `${p.size}px`,
+            "--rot": `${p.rot}deg`,
+          }}
+        >{p.emoji}</span>
+      ))}
+      <div className={`celebrate-msg ${reward.epic ? "epic" : ""}`}>
+        <span className="celebrate-emoji">{reward.epic ? "🏆" : "🎉"}</span>
+        <span className="celebrate-text">{reward.text}</span>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
    Fokus-Vollbild (Jetzt-Modus) – eine Aufgabe, großer Timer
    ========================================================= */
 function FocusOverlay({ item, api }) {
   const timers = api.state.timers;
   const isActive = timers?.activeId === item.id;
   const isBreak = !!item.isBreak;
+  const [showEx, setShowEx] = useState(false);
   useNow(true);
   const spent = liveSpentSec(item, timers);
   const plannedSec = (Number(item.durationMin) || 0) * 60;
@@ -1607,6 +1654,20 @@ function FocusOverlay({ item, api }) {
             : <button className="btn focus-btn focus-pause" onClick={() => api.taskStop()}>⏸ Pause</button>}
           <button className="btn btn-primary focus-btn" onClick={finish}>{isBreak ? "✓ Pause beendet" : "✓ Erledigt"}</button>
         </div>
+
+        {isBreak && (
+          <div className="focus-exercise">
+            <button className="btn" onClick={() => setShowEx(v => !v)}>
+              {showEx ? "Übung ausblenden" : "🌬️ Übung für die Pause"}
+            </button>
+            {showEx && (
+              <div className="focus-exercise-body">
+                <ExerciseModes onAcknowledge={() => {}} />
+              </div>
+            )}
+          </div>
+        )}
+
         <button className="focus-exit" onClick={close}>← Zurück zur Übersicht</button>
       </div>
     </div>
@@ -1853,10 +1914,18 @@ function ScaleADHD({ label, value, set }) {
    Stress – kurze Übungen
    ========================================================= */
 function StressView({ onAcknowledge }) {
-  const [mode, setMode] = useState("box"); // "box" | "478" | "sigh" | "pmr" | "eyes"
   return (
     <div className="card">
       <h2 className="h1">Stress – kurze Übungen</h2>
+      <ExerciseModes onAcknowledge={onAcknowledge} />
+    </div>
+  );
+}
+
+function ExerciseModes({ onAcknowledge }) {
+  const [mode, setMode] = useState("box"); // "box" | "478" | "sigh" | "pmr" | "eyes"
+  return (
+    <>
       <div className="row wrap mt8">
         <button className={`btn ${mode === "box" ? "btn-primary" : ""}`} onClick={() => setMode("box")}>Box-Breathing</button>
         <button className={`btn ${mode === "478" ? "btn-primary" : ""}`} onClick={() => setMode("478")}>4-7-8 Atmung</button>
@@ -1915,7 +1984,7 @@ function StressView({ onAcknowledge }) {
           />
         </>)}
       </div>
-    </div>
+    </>
   );
 }
 
