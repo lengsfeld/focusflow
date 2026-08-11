@@ -116,6 +116,8 @@ function label(route) {
     case "journal": return "Journal";
     case "checkin": return "Check-in";
     case "review": return "Tagesrückblick";
+    case "matrix": return "Matrix";
+    case "calendar": return "Kalender";
     default: return String(route || "").trim() || "Unbenannt";
   }
 }
@@ -262,6 +264,16 @@ function useStore() {
 
   // Fokus-Vollbild (Jetzt-Modus)
   const setFocus = (id) => setState(s => ({ ...s, ui: { ...s.ui, focusId: id } }));
+
+  // Prio einer Aufgabe setzen (Matrix: Ziehen zwischen Feldern)
+  const setPrio = (id, prio) => setState(s => {
+    const p = ["DW", "NDW", "DNW", "NDNW"].includes(prio) ? prio : null;
+    const planner = { ...s.planner };
+    for (const list of ["today", "backlog", "pool"]) {
+      planner[list] = (planner[list] || []).map(x => x.id === id ? { ...x, prio: p } : x);
+    }
+    return { ...s, planner };
+  });
 
   // Neu-Sortieren einer Liste anhand einer ID-Reihenfolge (SortableJS)
   const setListOrder = (list, ids) => setState(s => {
@@ -544,7 +556,7 @@ const autoPlanToday = (overrideMinutes) => {
     }
   }; // <-- diese Klammer + Semikolon MUSS da sein
 
-  return { state, setState, setRoute, setFocus, setListOrder, setConsent, setNickname,
+  return { state, setState, setRoute, setFocus, setListOrder, setPrio, setConsent, setNickname,
     // Planner
     plannerAdd, plannerToggle, plannerDelete, plannerMove, moveItem, autoPlanToday,
     // Inbox
@@ -760,7 +772,7 @@ export default function App() {
         <aside className="panel">
           <div className="menu-title" id="navTitle">Navigation</div>
           <ul className="menu-list">
-            {["home", "planner", "inbox", "stress", "journal", "checkin", "review"].map(r => (
+            {["home", "planner", "matrix", "calendar", "inbox", "stress", "journal", "checkin", "review"].map(r => (
               <li key={r}>
                 <button className={`menu-btn ${state.ui.route === r ? "active" : ""}`} onClick={() => { api.setRoute(r); setMenuOpen(false); }}>{label(r)}</button>
               </li>
@@ -778,6 +790,8 @@ export default function App() {
         {state.ui.route === "journal" && <JournalView state={state} api={api} />}
         {state.ui.route === "checkin" && <CheckinView api={api} last={state.checkins[0]} checkins={state.checkins} />}
         {state.ui.route === "review" && <ReviewView state={state} api={api} />}
+        {state.ui.route === "matrix" && <MatrixView state={state} api={api} />}
+        {state.ui.route === "calendar" && <WeekCalendarView state={state} api={api} />}
       </div>
 
       <footer className="footer">© {new Date().getFullYear()} FocusFlow — Lokale Daten</footer>
@@ -821,6 +835,10 @@ const sortedToday = useMemo(() => {
       <div className="card card-hero">
         <h2 className="h1">Hi {state.profile.nickname || "Du"} 👋</h2>
         <p className="muted">Selbsthilfe • Struktur • Fokus</p>
+        <div className="row wrap mt8">
+          <button className="btn" onClick={() => go("matrix")}>▦ Matrix</button>
+          <button className="btn" onClick={() => go("calendar")}>🗓 Kalender</button>
+        </div>
         {showStressNudge && (
           <div className="nudge">
             <div className="nudge-title">2-Stunden-Reminder</div>
@@ -1786,6 +1804,188 @@ function ReviewView({ state, api }) {
           <p className="muted">{openList.length} Aufgabe(n) bleiben im Plan – kein Stress, morgen ist auch noch Zeit.</p>
         </div>
       )}
+    </>
+  );
+}
+
+/* =========================================================
+   Eisenhower-Matrix – 4 Quadranten, Ziehen ändert Prio
+   ========================================================= */
+const MATRIX_QUADRANTS = [
+  { prio: "DW",   title: "Sofort tun",          sub: "dringend & wichtig",       cls: "q-dw" },
+  { prio: "NDW",  title: "Einplanen",           sub: "wichtig, nicht dringend",  cls: "q-ndw" },
+  { prio: "DNW",  title: "Schnell erledigen",   sub: "dringend, nicht wichtig",  cls: "q-dnw" },
+  { prio: "NDNW", title: "Später / weglassen",  sub: "weder noch",               cls: "q-ndnw" },
+];
+
+function useMatrixSortable(ref, { api }) {
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  useEffect(() => {
+    if (!ref.current) return;
+    const s = Sortable.create(ref.current, {
+      group: "matrix",
+      animation: 150,
+      handle: ".drag-handle",
+      draggable: ".sortable",
+      ghostClass: "drag-ghost",
+      chosenClass: "drag-chosen",
+      forceFallback: true,
+      fallbackTolerance: 4,
+      delay: 120,
+      delayOnTouchOnly: true,
+      onEnd: (evt) => {
+        const { item, from, to, oldIndex } = evt;
+        if (from === to) return; // Reihenfolge im Feld egal
+        // DOM zurücksetzen – React übernimmt die Änderung über den State
+        if (item.parentNode) item.parentNode.removeChild(item);
+        from.insertBefore(item, from.children[oldIndex] || null);
+        const id = item.getAttribute("data-id");
+        const newPrio = to.getAttribute("data-prio");
+        if (id && newPrio) apiRef.current.setPrio(id, newPrio);
+      },
+    });
+    return () => s.destroy();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+function MatrixView({ state, api }) {
+  const allTasks = useMemo(() => {
+    const out = [];
+    for (const list of ["today", "backlog", "pool"]) {
+      for (const it of (state.planner[list] || [])) {
+        if (!it.isBreak && !it.done) out.push(it);
+      }
+    }
+    return out;
+  }, [state.planner]);
+
+  return (
+    <>
+      <h2 className="h1">Eisenhower-Matrix</h2>
+      <p className="muted">Aufgabe in ein anderes Feld ziehen (am Griff ⠿) ändert die Priorität. Neue Aufgabe direkt im Feld anlegen.</p>
+      <div className="matrix">
+        {MATRIX_QUADRANTS.map(q => (
+          <MatrixQuadrant
+            key={q.prio}
+            q={q}
+            tasks={allTasks.filter(t => (t.prio || "NDNW") === q.prio)}
+            api={api}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function MatrixQuadrant({ q, tasks, api }) {
+  const ref = useRef(null);
+  useMatrixSortable(ref, { api });
+  const [v, setV] = useState("");
+  const add = () => { const t = v.trim(); if (!t) return; api.plannerAdd("backlog", t, q.prio); setV(""); };
+  return (
+    <div className={`matrix-cell ${q.cls}`}>
+      <div className="matrix-head">
+        <strong>{q.title}</strong>
+        <span className="muted">{q.sub}</span>
+      </div>
+      <ul className="list matrix-list" ref={ref} data-prio={q.prio}>
+        {tasks.map(t => (
+          <li key={t.id} className="item sortable matrix-item" data-id={t.id}>
+            <span className="drag-handle" title="Ziehen">⠿</span>
+            <span className="matrix-title">{t.title}</span>
+            {t.durationMin ? <span className="badge small">⏱ {t.durationMin}</span> : null}
+            {t.dueISO ? <span className="badge small">📅 {fmtDate(t.dueISO)}</span> : null}
+          </li>
+        ))}
+        {!tasks.length && <li className="muted matrix-empty">hierher ziehen…</li>}
+      </ul>
+      <div className="row wrap matrix-add">
+        <input className="input" placeholder="＋ Aufgabe…" value={v} onChange={e => setV(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} />
+        <button className="btn btn-primary" onClick={add} type="button">Add</button>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   Wochen-Kalender – Aufgaben am Fälligkeitstag
+   ========================================================= */
+function _startOfWeek(d) {
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const day = (x.getDay() + 6) % 7; // Montag = 0
+  x.setDate(x.getDate() - day);
+  return x;
+}
+const _toISODate = (d) => {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+};
+const _prioDot = (p) => p === "DW" ? "pd-dw" : p === "NDW" ? "pd-ndw" : p === "DNW" ? "pd-dnw" : p === "NDNW" ? "pd-ndnw" : "";
+
+function WeekCalendarView({ state, api }) {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const base = useMemo(() => { const s = _startOfWeek(new Date()); s.setDate(s.getDate() + weekOffset * 7); return s; }, [weekOffset]);
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => { const d = new Date(base); d.setDate(base.getDate() + i); return d; }), [base]);
+  const todayISO = _toISODate(new Date());
+
+  const tasksByDay = useMemo(() => {
+    const map = {};
+    for (const list of ["today", "backlog", "pool"]) for (const it of (state.planner[list] || [])) {
+      if (it.isBreak || !it.dueISO) continue;
+      (map[it.dueISO] ||= []).push(it);
+    }
+    return map;
+  }, [state.planner]);
+
+  const [addISO, setAddISO] = useState(null);
+  const [txt, setTxt] = useState("");
+  const doAdd = (iso) => { const t = txt.trim(); if (!t) { setAddISO(null); return; } api.plannerAdd("backlog", t, "NDNW", null, iso); setTxt(""); setAddISO(null); };
+
+  const weekLabel = `${days[0].toLocaleDateString(undefined, { day: "2-digit", month: "short" })} – ${days[6].toLocaleDateString(undefined, { day: "2-digit", month: "short" })}`;
+
+  return (
+    <>
+      <div className="row between wrap">
+        <h2 className="h1">Kalender · Woche</h2>
+        <div className="row gap">
+          <button className="btn" onClick={() => setWeekOffset(o => o - 1)} aria-label="Woche zurück">←</button>
+          <button className="btn" onClick={() => setWeekOffset(0)}>Heute</button>
+          <button className="btn" onClick={() => setWeekOffset(o => o + 1)} aria-label="Woche vor">→</button>
+        </div>
+      </div>
+      <p className="muted">{weekLabel} · Aufgaben an ihrem Fälligkeitstag. Auf ＋ tippen, um für den Tag anzulegen.</p>
+      <div className="week">
+        {days.map((d) => {
+          const iso = _toISODate(d);
+          const list = (tasksByDay[iso] || []);
+          const isToday = iso === todayISO;
+          return (
+            <div key={iso} className={`week-day ${isToday ? "is-today" : ""}`}>
+              <div className="week-day-head">
+                <span className="wd-name">{d.toLocaleDateString(undefined, { weekday: "short" })}</span>
+                <span className="wd-num">{d.getDate()}</span>
+              </div>
+              <div className="week-day-body">
+                {list.map(t => (
+                  <div key={t.id} className={`week-task ${_prioDot(t.prio)} ${t.done ? "done" : ""}`} title={t.title}>{t.title}</div>
+                ))}
+                {addISO === iso ? (
+                  <div className="week-add">
+                    <input autoFocus className="input" value={txt} onChange={e => setTxt(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") doAdd(iso); if (e.key === "Escape") { setAddISO(null); setTxt(""); } }}
+                      placeholder="Aufgabe…" />
+                    <button className="btn btn-primary" onClick={() => doAdd(iso)} type="button">OK</button>
+                  </div>
+                ) : (
+                  <button className="week-addbtn" onClick={() => { setAddISO(iso); setTxt(""); }} type="button">＋</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }
