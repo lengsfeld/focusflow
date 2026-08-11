@@ -460,6 +460,19 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* ===== Empfehlungen (tiefer) ===== */
 .advice-how{font-size:13px;color:#a7f3d0;background:rgba(34,197,94,.08);border-left:3px solid #22c55e;border-radius:8px;padding:6px 10px}
 
+/* ===== Drag & Drop (SortableJS) ===== */
+.drag-handle{
+  display:inline-flex;align-items:center;justify-content:center;
+  cursor:grab;user-select:none;touch-action:none;
+  color:var(--muted);font-size:18px;line-height:1;padding:2px 6px;margin-right:2px;
+  border-radius:8px;
+}
+.drag-handle:active{cursor:grabbing}
+.drag-handle:hover{color:var(--fg);background:rgba(255,255,255,.06)}
+.item.sortable{position:relative}
+.drag-ghost{opacity:.4}
+.drag-chosen{box-shadow:0 0 0 2px var(--accent);border-radius:14px}
+
 /* ===== Check-in Verlauf ===== */
 .hist-bars{display:flex;align-items:flex-end;gap:5px;height:82px;padding:6px 2px;background:#0a101b;border:1px solid #1b2336;border-radius:12px}
 .hist-col{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%}

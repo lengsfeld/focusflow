@@ -1,5 +1,6 @@
 import "./index.css";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Sortable from "sortablejs";
 
 console.log("🧩 App.jsx wurde geladen");
 
@@ -261,6 +262,22 @@ function useStore() {
 
   // Fokus-Vollbild (Jetzt-Modus)
   const setFocus = (id) => setState(s => ({ ...s, ui: { ...s.ui, focusId: id } }));
+
+  // Neu-Sortieren einer Liste anhand einer ID-Reihenfolge (SortableJS)
+  const setListOrder = (list, ids) => setState(s => {
+    const arr = s.planner[list] || [];
+    const byId = new Map(arr.map(x => [x.id, x]));
+    const ordered = ids.map(id => byId.get(id)).filter(Boolean);
+    if (list === "today") {
+      // Pausen rausnehmen, Aufgaben neu nummerieren, Pausen per Reflow neu setzen
+      const tasksOnly = ordered.filter(x => !x.isBreak).map((t, i) => ({ ...t, order: i }));
+      const reflowed = _reflowToday(tasksOnly, s.settings);
+      return { ...s, planner: { ...s.planner, today: reflowed } };
+    }
+    const rest = arr.filter(x => !ids.includes(x.id));
+    const next = [...ordered, ...rest].map((x, i) => ({ ...x, order: i }));
+    return { ...s, planner: { ...s.planner, [list]: next } };
+  });
 
   // Helper: normalisiere Prio
   function normalizePrio(p) {
@@ -527,7 +544,7 @@ const autoPlanToday = (overrideMinutes) => {
     }
   }; // <-- diese Klammer + Semikolon MUSS da sein
 
-  return { state, setState, setRoute, setFocus, setConsent, setNickname,
+  return { state, setState, setRoute, setFocus, setListOrder, setConsent, setNickname,
     // Planner
     plannerAdd, plannerToggle, plannerDelete, plannerMove, moveItem, autoPlanToday,
     // Inbox
@@ -549,6 +566,38 @@ function useNow(active) {
     const id = setInterval(() => setN(n => (n + 1) % 1e9), 1000);
     return () => clearInterval(id);
   }, [active]);
+}
+
+/* ---------- SortableJS: zuverlässiges Drag & Drop (Maus + Touch) ---------- */
+function useSortableList(ref, { list, api, enabled }) {
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  useEffect(() => {
+    if (!enabled || !ref.current) return;
+    const sortable = Sortable.create(ref.current, {
+      animation: 150,
+      handle: ".drag-handle",
+      draggable: ".sortable",
+      filter: "input, textarea",
+      ghostClass: "drag-ghost",
+      chosenClass: "drag-chosen",
+      forceFallback: true,       // einheitliches Verhalten Desktop + Touch
+      fallbackTolerance: 4,
+      delay: 120,                // kurzer Halt am Handy, damit Scrollen normal bleibt
+      delayOnTouchOnly: true,
+      onEnd: () => {
+        const el = ref.current;
+        if (!el) return;
+        const ids = Array.from(el.querySelectorAll(".sortable"))
+          .map(node => node.getAttribute("data-id"))
+          .filter(Boolean);
+        if (ids.length) apiRef.current.setListOrder(list, ids);
+      },
+    });
+    return () => sortable.destroy();
+    // bewusst nur bei enabled/list neu aufsetzen, nicht bei jedem Render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, list]);
 }
 
 /* ---------- Migration ---------- */
@@ -930,6 +979,9 @@ function PlannerView({ state, api }) {
 
   const budget = computeBudgetToday(state);
 
+  const poolRef = useRef(null);
+  useSortableList(poolRef, { list: "pool", api, enabled: true });
+
   return (
     <>
       <div className="card">
@@ -1025,20 +1077,17 @@ function PlannerView({ state, api }) {
           />
 
           {/* Pool */}
-          <div className="card mt12" onDragOver={(e) => e.preventDefault()} onDrop={(e) => _dndListDrop(e, api, "pool")}>
+          <div className="card mt12">
             <strong>Pool (für später)</strong>
-            <p className="muted">Heute nicht mehr unterzubringen — sortiert nach Deadline, Prio, Dauer.</p>
-            <ul className="list mt8">
+            <p className="muted">Zum Umsortieren am Griff ⠿ ziehen. Verschieben nach Heute/Backlog per Button.</p>
+            <ul className="list mt8" ref={poolRef}>
               {state.planner.pool.map(it => (
                 <li
                   key={it.id}
-                  className="item"
-                  draggable
-                  onDragStart={(e) => _dndDragStart(e, { id: it.id, from: "pool" })}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => _dndItemDrop(e, api, { to: "pool", beforeId: it.id })}
+                  className="item sortable"
+                  data-id={it.id}
                 >
-                  <div className="title">{it.title}</div>
+                  <div className="title"><span className="drag-handle" title="Zum Umsortieren ziehen">⠿</span> {it.title}</div>
                   <div className="muted">
                     {_dndPrioLabel(it.prio)}
                     {it.durationMin ? ` · ⏱️ ${it.durationMin} Min` : ""}
@@ -1286,10 +1335,11 @@ function _PlannerColumn({
   return [...items].sort(_dndSortBacklog);
 }, [items, listKey]);
 
+  const ulRef = useRef(null);
+  useSortableList(ulRef, { list: listKey, api, enabled: !!dnd });
+
   return (
-    <div className="card"
-      onDragOver={(e) => dnd && e.preventDefault()}
-      onDrop={(e) => dnd && _dndListDrop(e, api, listKey)}>
+    <div className="card">
       <div className="row between"><strong>{title}</strong></div>
 
       {allowAdd && (
@@ -1327,7 +1377,7 @@ function _PlannerColumn({
         </div>
       )}
 
-      <ul className="list mt8">
+      <ul className="list mt8" ref={ulRef}>
         {sorted.map(it => (
           <_PlannerRow
             key={it.id}
@@ -1378,14 +1428,12 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
 
   return (
     <li
-      className={`item task ${prioClass}`}
-      draggable={!!dnd}
-      onDragStart={(e) => dnd && _dndDragStart(e, { id: item.id, from: list })}
-      onDragOver={(e) => dnd && e.preventDefault()}
-      onDrop={(e) => dnd && _dndItemDrop(e, api, { to: list, beforeId: item.id })}
+      className={`item task ${prioClass} ${dnd ? "sortable" : ""}`}
+      data-id={item.id}
     >
-      {/* 1. Zeile: Checkbox + Taskname */}
+      {/* 1. Zeile: Griff + Checkbox + Taskname */}
       <div className="row top">
+        {dnd && <span className="drag-handle" title="Zum Umsortieren ziehen" aria-label="Ziehen">⠿</span>}
         <input
           type="checkbox"
           checked={item.done}
