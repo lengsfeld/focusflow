@@ -379,6 +379,68 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .phase-bar>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width 1s linear}
 
 /* ===== Check-in Feinheiten ===== */
+.scale{flex-wrap:wrap}
 .scale-word{min-width:74px;font-size:12px}
 .item.advice{display:block}
 .item.advice .title{font-weight:700}
+
+/* Check-in auf schmalen Screens (Handy/PWA) sauber umbrechen */
+@media (max-width: 560px){
+  .scale{align-items:center;gap:6px 10px}
+  .scale-label{width:100%;max-width:100%;margin-bottom:2px}
+  .scale .range.color{flex:1 1 55%;min-width:120px}
+  .scale .badge.metric{flex:0 0 auto}
+  .scale-word{flex:0 0 auto;min-width:auto}
+}
+
+/* ===== Mini-Aktionen in der Übersicht ===== */
+.mini-actions{display:flex;align-items:center;gap:8px}
+.mini-actions .tasktimer{flex:1;margin-top:8px}
+.mini-focus{padding:6px 10px;align-self:flex-start;margin-top:8px}
+
+/* ===== Mini-Belohnung (Toast) ===== */
+.reward-toast{
+  position:fixed;left:50%;bottom:32px;transform:translateX(-50%);
+  z-index:120;background:linear-gradient(180deg,#22c55e,#16a34a);color:#fff;
+  font-weight:800;font-size:16px;padding:12px 20px;border-radius:999px;
+  box-shadow:0 12px 30px rgba(34,197,94,.4);
+  animation:reward-pop 1.8s ease forwards;
+}
+@keyframes reward-pop{
+  0%{opacity:0;transform:translateX(-50%) translateY(12px) scale(.9)}
+  12%{opacity:1;transform:translateX(-50%) translateY(0) scale(1.05)}
+  22%{transform:translateX(-50%) translateY(0) scale(1)}
+  80%{opacity:1}
+  100%{opacity:0;transform:translateX(-50%) translateY(-8px)}
+}
+
+/* ===== Fokus-Vollbild (Jetzt-Modus) ===== */
+.focus-overlay{
+  position:fixed;inset:0;z-index:200;
+  background:radial-gradient(1200px 600px at 50% -10%, rgba(10,132,255,.18), transparent), var(--bg);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  animation:focus-fade .2s ease;
+}
+@keyframes focus-fade{from{opacity:0}to{opacity:1}}
+.focus-close{
+  position:absolute;top:16px;right:16px;width:44px;height:44px;border-radius:50%;
+  border:1px solid #283247;background:#171d2e;color:var(--fg);font-size:18px;cursor:pointer
+}
+.focus-close:hover{filter:brightness(1.1)}
+.focus-inner{width:100%;max-width:520px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.focus-label{font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted)}
+.focus-title{font-size:clamp(24px,6vw,40px);font-weight:900;line-height:1.15;margin:0}
+.focus-clock{font-size:clamp(56px,18vw,110px);font-weight:900;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:1px}
+.focus-clock.over{color:#f87171}
+.focus-sub{color:var(--muted);font-size:14px}
+.focus-bar{width:100%;max-width:420px;height:12px}
+.focus-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.focus-btn{font-size:17px;padding:14px 26px;border-radius:14px}
+.focus-pause{background:#332a09;border-color:#a97f10;color:#ffe9a8}
+.focus-exit{margin-top:12px;background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:14px}
+.focus-exit:hover{color:var(--fg)}
+
+/* ===== Tagesrückblick ===== */
+.review-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.rev-stat{background:#0f1628;border:1px solid #23314c;border-radius:12px;padding:12px;text-align:center}
+.rev-num{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}

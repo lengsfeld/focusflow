@@ -28,6 +28,8 @@ const clone = (o) => (
     : JSON.parse(JSON.stringify(o))
 );
 
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
 /* ---------- Startzustand ---------- */
 const INITIAL = {
   __schema: 2,
@@ -46,7 +48,8 @@ const INITIAL = {
     dayStart: "09:00"   // Startuhrzeit für den Zeitstrahl
   },
   ui: {
-    route: "home" // wird persistiert
+    route: "home", // wird persistiert
+    focusId: null  // aktive Aufgabe im Fokus-Vollbild
   }
 };
 
@@ -111,6 +114,7 @@ function label(route) {
     case "stress": return "Atemübung";
     case "journal": return "Journal";
     case "checkin": return "Check-in";
+    case "review": return "Tagesrückblick";
     default: return String(route || "").trim() || "Unbenannt";
   }
 }
@@ -254,6 +258,9 @@ function useStore() {
 
   // Route-Persistenz
   const setRoute = (r) => setState(s => ({ ...s, ui: { ...s.ui, route: r } }));
+
+  // Fokus-Vollbild (Jetzt-Modus)
+  const setFocus = (id) => setState(s => ({ ...s, ui: { ...s.ui, focusId: id } }));
 
   // Helper: normalisiere Prio
   function normalizePrio(p) {
@@ -518,7 +525,7 @@ const autoPlanToday = (overrideMinutes) => {
     }
   }; // <-- diese Klammer + Semikolon MUSS da sein
 
-  return { state, setState, setRoute, setConsent, setNickname,
+  return { state, setState, setRoute, setFocus, setConsent, setNickname,
     // Planner
     plannerAdd, plannerToggle, plannerDelete, plannerMove, moveItem, autoPlanToday,
     // Inbox
@@ -585,6 +592,8 @@ function migrate(s) {
   out.timers ||= { activeId: null, startedAt: null };
   out.settings ||= clone(INITIAL.settings);
   if (!out.settings.dayStart) out.settings.dayStart = "09:00";
+  out.ui ||= { route: "home", focusId: null };
+  if (!("focusId" in out.ui)) out.ui.focusId = null;
 
   return out;
 }
@@ -629,6 +638,25 @@ export default function App() {
 
   const todayDone = state.planner.today.filter(i => i.done && !i.isBreak).length;
   const todayTotal = state.planner.today.filter(i => !i.isBreak).length;
+
+  // Fokus-Vollbild: aktuell fokussierte Aufgabe
+  const focusItem = state.ui.focusId
+    ? state.planner.today.find(t => t.id === state.ui.focusId && !t.isBreak)
+    : null;
+
+  // Mini-Belohnung: kurze Feier, wenn eine Aufgabe fertig wird
+  const [reward, setReward] = useState(null);
+  const prevDoneRef = useRef(todayDone);
+  useEffect(() => {
+    if (todayDone > prevDoneRef.current) {
+      const all = todayTotal > 0 && todayDone >= todayTotal;
+      setReward(all ? "Alles geschafft! 🎉" : pick(["Stark! ✅", "Erledigt 💪", "Nice! 🎉", "Weiter so ⭐", "Geschafft 🙌"]));
+      const id = setTimeout(() => setReward(null), 1800);
+      prevDoneRef.current = todayDone;
+      return () => clearTimeout(id);
+    }
+    prevDoneRef.current = todayDone;
+  }, [todayDone, todayTotal]);
 
   // Onboarding
   if (!state.profile.consent) {
@@ -677,7 +705,7 @@ export default function App() {
         <aside className="panel">
           <div className="menu-title" id="navTitle">Navigation</div>
           <ul className="menu-list">
-            {["home", "planner", "inbox", "stress", "journal", "checkin"].map(r => (
+            {["home", "planner", "inbox", "stress", "journal", "checkin", "review"].map(r => (
               <li key={r}>
                 <button className={`menu-btn ${state.ui.route === r ? "active" : ""}`} onClick={() => { api.setRoute(r); setMenuOpen(false); }}>{label(r)}</button>
               </li>
@@ -694,9 +722,13 @@ export default function App() {
         {state.ui.route === "stress" && <StressView onAcknowledge={api.touchStressNudge} />}
         {state.ui.route === "journal" && <JournalView state={state} api={api} />}
         {state.ui.route === "checkin" && <CheckinView api={api} last={state.checkins[0]} />}
+        {state.ui.route === "review" && <ReviewView state={state} api={api} />}
       </div>
 
       <footer className="footer">© {new Date().getFullYear()} FocusFlow — Lokale Daten</footer>
+
+      {reward && <div className="reward-toast" role="status">{reward}</div>}
+      {focusItem && <FocusOverlay item={focusItem} api={api} />}
     </div>
   );
 }
@@ -765,16 +797,20 @@ const sortedToday = useMemo(() => {
         </ul>
 
         <div className="progress"><div className="progress-bar" style={{ width: `${progressPct}%` }} /></div>
-        <div className="row mt8">
+        <div className="row wrap mt8">
           <button className="btn btn-primary" onClick={() => go("planner")}>Plan bearbeiten</button>
+          <button
+            className="btn"
+            onClick={() => {
+              const act = state.timers?.activeId;
+              const first = state.planner.today.find(t => !t.isBreak && !t.done);
+              const id = act || first?.id;
+              if (id) api.setFocus(id);
+            }}
+          >🎯 Jetzt-Modus</button>
+          <button className="btn" onClick={() => go("review")}>🌙 Tagesrückblick</button>
           <button className="btn" onClick={() => go("stress")}>3-Min Atemübung</button>
         </div>
-      </div>
-
-      <div className="card">
-        <strong>Zeitstrahl heute</strong>
-        <p className="muted">Start {state.settings.dayStart || "09:00"} · geplante Uhrzeiten je Aufgabe</p>
-        <DayTimeline today={state.planner.today} dayStart={state.settings.dayStart} timers={state.timers} />
       </div>
 
       <div className="grid two">
@@ -862,7 +898,10 @@ function _PlannerRowMini({ item, onToggle, api }) {
       </div>
 
       {api && !item.done && (
-        <TaskTimer item={item} timers={api.state.timers} api={api} compact />
+        <div className="mini-actions">
+          <TaskTimer item={item} timers={api.state.timers} api={api} compact />
+          <button className="btn ghost mini-focus" onClick={() => api.setFocus(item.id)} title="Fokus-Vollbild" type="button">🎯</button>
+        </div>
       )}
     </li>
   );
@@ -923,27 +962,9 @@ function PlannerView({ state, api }) {
             Pausen neu verteilen
           </button>
         </div>
-        <div className="row wrap mt8" style={{ alignItems: "center" }}>
-          <label className="muted" htmlFor="dayStart">Tagesstart (Zeitstrahl):</label>
-          <input
-            id="dayStart"
-            className="input"
-            type="time"
-            value={state.settings.dayStart || "09:00"}
-            onChange={e => api.setDayStart(e.target.value)}
-            style={{ maxWidth: 130 }}
-          />
-        </div>
         <p className="muted mt6">
           Nach jeweils 1,5 h Arbeit wird automatisch eine Pause ({state.settings.breakMinutes} Min) eingefügt.
         </p>
-      </div>
-
-      {/* Zeitstrahl */}
-      <div className="card">
-        <strong>Zeitstrahl heute</strong>
-        <p className="muted">Ab {state.settings.dayStart || "09:00"} · Start/Ende jeder Aufgabe direkt in der Liste unten.</p>
-        <DayTimeline today={state.planner.today} dayStart={state.settings.dayStart} timers={state.timers} />
       </div>
 
       {/* Zeitbudget */}
@@ -1369,6 +1390,9 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
 
       {/* 3. Zeile: Buttons nebeneinander */}
       <div className="row bottom actions">
+        {list === "today" && (
+          <button className="btn" title="Fokus-Vollbild" onClick={() => api.setFocus(item.id)} type="button">🎯 Fokus</button>
+        )}
         <button className="btn ghost" title="nach oben" onClick={() => onMove(item.id, -1)} type="button">↑</button>
         <button className="btn ghost" title="nach unten" onClick={() => onMove(item.id, +1)} type="button">↓</button>
         {list !== "today" && (
@@ -1516,6 +1540,116 @@ function PhaseTimer({ phases = [], repeat = 1, onAcknowledge }) {
         <button className="btn" onClick={onAcknowledge}>Fertig</button>
       </div>
     </div>
+  );
+}
+
+/* =========================================================
+   Fokus-Vollbild (Jetzt-Modus) – eine Aufgabe, großer Timer
+   ========================================================= */
+function FocusOverlay({ item, api }) {
+  const timers = api.state.timers;
+  const isActive = timers?.activeId === item.id;
+  useNow(true);
+  const spent = liveSpentSec(item, timers);
+  const plannedSec = (Number(item.durationMin) || 0) * 60;
+  const remain = plannedSec ? plannedSec - spent : null;
+  const pct = plannedSec > 0 ? Math.min(100, (spent / plannedSec) * 100) : 0;
+  const over = plannedSec > 0 && spent > plannedSec;
+  const barState = !plannedSec ? "none" : over ? "over" : pct >= 80 ? "warn" : "ok";
+
+  const close = () => api.setFocus(null);
+  const finish = () => { api.taskStop(); api.plannerToggle("today", item.id); api.setFocus(null); };
+
+  return (
+    <div className="focus-overlay" role="dialog" aria-modal="true">
+      <button className="focus-close" onClick={close} aria-label="Schließen">✕</button>
+      <div className="focus-inner">
+        <div className="focus-label">Jetzt-Modus · nur diese eine Sache</div>
+        <h1 className="focus-title">{item.title || "Ohne Titel"}</h1>
+        <div className={`focus-clock ${over ? "over" : ""}`}>
+          {plannedSec && remain !== null ? (over ? `+${mmss(spent - plannedSec)}` : mmss(remain)) : mmss(spent)}
+        </div>
+        <div className="focus-sub">
+          {plannedSec ? (over ? "über der geplanten Zeit – alles gut, bleib dran" : `von ${mmss(plannedSec)} geplant · ${mmss(spent)} gearbeitet`) : `${mmss(spent)} gearbeitet`}
+        </div>
+        {plannedSec > 0 && (
+          <div className="tt-bar focus-bar"><div className={`tt-fill s-${barState}`} style={{ width: `${over ? 100 : pct}%` }} /></div>
+        )}
+        <div className="focus-actions">
+          {!isActive
+            ? <button className="btn btn-primary focus-btn" onClick={() => api.taskStart(item.id)}>▶ Start</button>
+            : <button className="btn focus-btn focus-pause" onClick={() => api.taskStop()}>⏸ Pause</button>}
+          <button className="btn btn-primary focus-btn" onClick={finish}>✓ Erledigt</button>
+        </div>
+        <button className="focus-exit" onClick={close}>← Zurück zur Übersicht</button>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   Tagesrückblick – Abend-Review
+   ========================================================= */
+function ReviewView({ state, api }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const doneList = state.planner.today.filter(i => !i.isBreak && i.done);
+  const openList = state.planner.today.filter(i => !i.isBreak && !i.done);
+  const totalCount = state.planner.today.filter(i => !i.isBreak).length;
+  const checkin = state.checkins.find(c => c.dateISO.slice(0, 10) === todayStr);
+  const workedSec = state.planner.today.reduce((a, b) => a + (Number(b.spentSec) || 0), 0);
+
+  const [mood, setMood] = useState(3);
+  const [focus, setFocus] = useState(3);
+  const [note, setNote] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const finishDay = () => {
+    api.addJournal(mood, focus, note.trim() || "Tag abgeschlossen");
+    setSaved(true);
+    setNote("");
+  };
+
+  const pctDone = totalCount ? Math.round((doneList.length / totalCount) * 100) : 0;
+
+  return (
+    <>
+      <h2 className="h1">Tagesrückblick 🌙</h2>
+
+      <div className="card">
+        <strong>Heute geschafft</strong>
+        <div className="review-stats mt8">
+          <div className="rev-stat"><div className="rev-num">{doneList.length}/{totalCount}</div><div className="muted">Aufgaben</div></div>
+          <div className="rev-stat"><div className="rev-num">{mmss(workedSec)}</div><div className="muted">fokussiert</div></div>
+          <div className="rev-stat"><div className="rev-num">{checkin ? checkin.score : "–"}</div><div className="muted">Check-in</div></div>
+        </div>
+        {totalCount > 0 && <div className="progress mt8"><div className="progress-bar" style={{ width: `${pctDone}%` }} /></div>}
+      </div>
+
+      {doneList.length > 0 && (
+        <div className="card">
+          <strong>Erledigt ✅</strong>
+          <ul className="list mt8">{doneList.map(t => <li key={t.id} className="item"><div className="title">{t.title}</div></li>)}</ul>
+        </div>
+      )}
+
+      <div className="card">
+        <strong>Wie war der Tag?</strong>
+        <div className="row wrap mt8">
+          <label>Stimmung<input type="number" min={1} max={5} value={mood} onChange={e => setMood(+e.target.value)} className="input num" /></label>
+          <label>Fokus<input type="number" min={1} max={5} value={focus} onChange={e => setFocus(+e.target.value)} className="input num" /></label>
+        </div>
+        <textarea className="textarea mt8" rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="Ein Satz: Was lief gut? Was nehme ich mit?" />
+        <div className="row end mt8"><button className="btn btn-primary" onClick={finishDay}>Tag abschließen</button></div>
+        {saved && <p className="muted mt6">Gespeichert – ins Journal übernommen. Schlaf gut. 🌙</p>}
+      </div>
+
+      {openList.length > 0 && (
+        <div className="card">
+          <strong>Offen für morgen</strong>
+          <p className="muted">{openList.length} Aufgabe(n) bleiben im Plan – kein Stress, morgen ist auch noch Zeit.</p>
+        </div>
+      )}
+    </>
   );
 }
 
