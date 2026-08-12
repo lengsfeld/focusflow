@@ -525,6 +525,18 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .matrix-add .input{flex:1;min-width:0}
 @media (max-width:640px){ .matrix{grid-template-columns:1fr} }
 
+/* ===== Aufgaben-Editor ===== */
+.editor-card{width:100%;max-width:460px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:18px;max-height:88vh;overflow:auto}
+.editor-card .h1{margin-top:0}
+.ed-label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
+.ed-row{margin-top:4px}
+.ed-field{display:flex;flex-direction:column}
+.ed-actions{margin-top:18px}
+.ed-del{color:#f87171;border-color:rgba(248,113,113,.4)}
+.ed-del:hover{background:rgba(248,113,113,.1)}
+button.matrix-title{background:transparent;border:0;color:var(--fg);text-align:left;cursor:pointer;font-size:14px;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button.matrix-title:hover{text-decoration:underline}
+
 /* ===== Wochen-Kalender ===== */
 .week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px}
 .week-day{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;min-height:150px;display:flex;flex-direction:column}

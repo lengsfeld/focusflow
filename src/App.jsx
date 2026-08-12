@@ -50,7 +50,8 @@ const INITIAL = {
   },
   ui: {
     route: "home", // wird persistiert
-    focusId: null  // aktive Aufgabe im Fokus-Vollbild
+    focusId: null, // aktive Aufgabe im Fokus-Vollbild
+    edit: null     // { list, id } der zu bearbeitenden Aufgabe
   }
 };
 
@@ -264,6 +265,15 @@ function useStore() {
 
   // Fokus-Vollbild (Jetzt-Modus)
   const setFocus = (id) => setState(s => ({ ...s, ui: { ...s.ui, focusId: id } }));
+
+  // Aufgaben-Editor
+  const setEdit = (list, id) => setState(s => ({ ...s, ui: { ...s.ui, edit: (list && id) ? { list, id } : null } }));
+  const plannerUpdate = (list, id, patch) => setState(s => {
+    const arr = (s.planner[list] || []).map(x => x.id === id ? { ...x, ...patch } : x);
+    const planner = { ...s.planner, [list]: arr };
+    if (list === "today") planner.today = _reflowToday(planner.today, s.settings);
+    return { ...s, planner };
+  });
 
   // Prio einer Aufgabe setzen (Matrix: Ziehen zwischen Feldern)
   const setPrio = (id, prio) => setState(s => {
@@ -556,9 +566,9 @@ const autoPlanToday = (overrideMinutes) => {
     }
   }; // <-- diese Klammer + Semikolon MUSS da sein
 
-  return { state, setState, setRoute, setFocus, setListOrder, setPrio, setConsent, setNickname,
+  return { state, setState, setRoute, setFocus, setEdit, setListOrder, setPrio, setConsent, setNickname,
     // Planner
-    plannerAdd, plannerToggle, plannerDelete, plannerMove, moveItem, autoPlanToday,
+    plannerAdd, plannerToggle, plannerDelete, plannerUpdate, plannerMove, moveItem, autoPlanToday,
     // Inbox
     inboxAdd, inboxRemove, inboxToBacklog,
     // Journal/Checkins
@@ -657,6 +667,7 @@ function migrate(s) {
   if (!out.settings.dayStart) out.settings.dayStart = "09:00";
   out.ui ||= { route: "home", focusId: null };
   if (!("focusId" in out.ui)) out.ui.focusId = null;
+  if (!("edit" in out.ui)) out.ui.edit = null;
 
   return out;
 }
@@ -706,6 +717,10 @@ export default function App() {
   const focusItem = state.ui.focusId
     ? state.planner.today.find(t => t.id === state.ui.focusId)
     : null;
+
+  // Aufgaben-Editor
+  const editTarget = state.ui.edit;
+  const editItem = editTarget ? (state.planner[editTarget.list] || []).find(t => t.id === editTarget.id) : null;
 
   // Belohnung: große Feier, wenn eine Aufgabe fertig wird
   const [reward, setReward] = useState(null); // { text, epic, n }
@@ -798,6 +813,7 @@ export default function App() {
 
       {reward && <Celebration reward={reward} />}
       {focusItem && <FocusOverlay item={focusItem} api={api} />}
+      {editItem && <TaskEditor item={editItem} list={editTarget.list} api={api} />}
     </div>
   );
 }
@@ -1114,6 +1130,7 @@ function PlannerView({ state, api }) {
                   <div className="row wrap gap actions">
                     <button className="btn btn-primary" type="button" onClick={() => _dndReorderOrMove(api, { from: "pool", to: "today", draggedId: it.id })}>→ Heute</button>
                     <button className="btn" type="button" onClick={() => _dndReorderOrMove(api, { from: "pool", to: "backlog", draggedId: it.id })}>→ Backlog</button>
+                    <button className="btn" type="button" title="Bearbeiten" onClick={() => api.setEdit("pool", it.id)}>✏️</button>
                     <button className="btn" type="button" onClick={() => api.plannerDelete("pool", it.id)}>Löschen</button>
                   </div>
                 </li>
@@ -1547,6 +1564,7 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
         {list !== "pool" && (
           <button className="btn" onClick={() => _dndReorderOrMove(api, { from: list, to: "pool", draggedId: item.id })} type="button">→ Pool</button>
         )}
+        <button className="btn" title="Bearbeiten" onClick={() => api.setEdit(list, item.id)} type="button">✏️</button>
         <button className="btn" onClick={() => onDelete(item.id)} type="button">Löschen</button>
       </div>
 
@@ -1735,6 +1753,62 @@ function Celebration({ reward }) {
 }
 
 /* =========================================================
+   Aufgaben-Editor – Titel, Prio, Dauer, Deadline ändern
+   ========================================================= */
+function TaskEditor({ item, list, api }) {
+  const [title, setTitle] = useState(item.title || "");
+  const [prio, setPrio] = useState(item.prio || "");
+  const [dur, setDur] = useState(item.durationMin ? String(item.durationMin) : "");
+  const [due, setDue] = useState(item.dueISO || "");
+
+  const close = () => api.setEdit(null, null);
+  const save = () => {
+    api.plannerUpdate(list, item.id, {
+      title: title.trim() || item.title,
+      prio: prio || null,
+      durationMin: dur ? Math.max(1, Math.round(+dur)) : null,
+      dueISO: due || null,
+    });
+    close();
+  };
+  const del = () => { api.plannerDelete(list, item.id); close(); };
+
+  return (
+    <div className="focus-overlay" role="dialog" aria-modal="true">
+      <button className="focus-close" onClick={close} aria-label="Schließen">✕</button>
+      <div className="editor-card">
+        <h3 className="h1">Aufgabe bearbeiten</h3>
+
+        <label className="ed-label">Bezeichnung</label>
+        <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Titel der Aufgabe" />
+
+        <label className="ed-label">Priorität</label>
+        <PrioPicker value={prio} onChange={setPrio} />
+
+        <div className="row wrap gap ed-row">
+          <div className="ed-field">
+            <label className="ed-label">Dauer (Min)</label>
+            <input className="input num" type="number" min="5" step="5" value={dur} onChange={e => setDur(e.target.value)} placeholder="z. B. 30" />
+          </div>
+          <div className="ed-field">
+            <label className="ed-label">Deadline</label>
+            <DatePicker value={due || null} onChange={iso => setDue(iso || "")} />
+          </div>
+        </div>
+
+        <div className="row between ed-actions">
+          <button className="btn ed-del" onClick={del} type="button">Löschen</button>
+          <div className="row gap">
+            <button className="btn" onClick={close} type="button">Abbrechen</button>
+            <button className="btn btn-primary" onClick={save} type="button">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
    Fokus-Vollbild (Jetzt-Modus) – eine Aufgabe, großer Timer
    ========================================================= */
 function FocusOverlay({ item, api }) {
@@ -1912,7 +1986,7 @@ function MatrixView({ state, api }) {
     const out = [];
     for (const list of ["today", "backlog", "pool"]) {
       for (const it of (state.planner[list] || [])) {
-        if (!it.isBreak && !it.done) out.push(it);
+        if (!it.isBreak && !it.done) out.push({ ...it, _list: list });
       }
     }
     return out;
@@ -1951,7 +2025,7 @@ function MatrixQuadrant({ q, tasks, api }) {
         {tasks.map(t => (
           <li key={t.id} className="item sortable matrix-item" data-id={t.id}>
             <span className="drag-handle" title="Ziehen">⠿</span>
-            <span className="matrix-title">{t.title}</span>
+            <button type="button" className="matrix-title" title="Bearbeiten" onClick={() => api.setEdit(t._list, t.id)}>{t.title}</button>
             {t.durationMin ? <span className="badge small">⏱ {t.durationMin}</span> : null}
             {t.dueISO ? <span className="badge small">📅 {fmtDate(t.dueISO)}</span> : null}
           </li>
@@ -1989,12 +2063,21 @@ function WeekCalendarView({ state, api }) {
 
   const tasksByDay = useMemo(() => {
     const map = {};
+    const seen = new Set();
+    // 1) Alle Aufgaben mit Deadline → an ihrem Fälligkeitstag
     for (const list of ["today", "backlog", "pool"]) for (const it of (state.planner[list] || [])) {
       if (it.isBreak || !it.dueISO) continue;
       (map[it.dueISO] ||= []).push(it);
+      seen.add(it.id);
+    }
+    // 2) Heutige Tagesplan-Aufgaben ohne Deadline → auf heute spiegeln
+    for (const it of (state.planner.today || [])) {
+      if (it.isBreak || it.dueISO || seen.has(it.id)) continue;
+      (map[todayISO] ||= []).push(it);
+      seen.add(it.id);
     }
     return map;
-  }, [state.planner]);
+  }, [state.planner, todayISO]);
 
   const [addISO, setAddISO] = useState(null);
   const [txt, setTxt] = useState("");
