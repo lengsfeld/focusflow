@@ -2362,25 +2362,49 @@ function CheckinHistory({ checkins = [] }) {
     return xs.length ? (xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1) : "–";
   };
   const trend = scores.length >= 2 ? scores[scores.length - 1] - scores[0] : 0;
+  const fmtD = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" });
 
   return (
     <div className="card">
-      <div className="row between"><strong>Verlauf</strong><span className="muted">letzte {last.length} · Ø {avg}</span></div>
-      <div className="hist-bars mt8">
-        {last.map((c, i) => {
-          const sc = Number(c.score) || 0;
-          const bandCls = scoreBand(sc).label.toLowerCase().replace(/\s+/g, '-');
-          return (
-            <div key={c.id || i} className="hist-col" title={`${new Date(c.dateISO).toLocaleDateString()} · Score ${sc}`}>
-              <div className={`hist-bar band-${bandCls}`} style={{ height: `${Math.max(6, Math.round(sc * 0.7))}px` }} />
-            </div>
-          );
-        })}
+      <div className="row between">
+        <strong>Check-in-Verlauf</strong>
+        <span className="muted">Ø {avg}/100</span>
       </div>
+      <p className="muted">Gesamt-Score je Check-in (0–100, höher = besser). Letzte {last.length} Einträge.</p>
+
+      <div className="chart">
+        <div className="chart-yaxis">
+          <span>100</span><span>50</span><span>0</span>
+        </div>
+        <div className="chart-plot">
+          <div className="chart-grid"><span /><span /><span /></div>
+          <div className="chart-bars">
+            {last.map((c, i) => {
+              const sc = Number(c.score) || 0;
+              const bandCls = scoreBand(sc).label.toLowerCase().replace(/\s+/g, '-');
+              return (
+                <div key={c.id || i} className="chart-col" title={`${fmtD(c.dateISO)} · Score ${sc} · ${scoreBand(sc).label}`}>
+                  <span className="chart-val">{sc}</span>
+                  <div className={`chart-bar band-${bandCls}`} style={{ height: `${sc}%` }} />
+                  <span className="chart-xlabel">{fmtD(c.dateISO)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="chart-legend">
+        <span><i className="lg band-hoch-belastet" /> hoch belastet (0–40)</span>
+        <span><i className="lg band-angespannt" /> angespannt (41–60)</span>
+        <span><i className="lg band-solide" /> solide (61–80)</span>
+        <span><i className="lg band-gut" /> gut (81–100)</span>
+      </div>
+
       <div className="row wrap mt8">
         <span className="badge small">Trend {trend > 0 ? `+${trend}` : trend}</span>
-        <span className="badge small">Ø Lautstärke {meanOf("loud")}</span>
-        <span className="badge small">Ø Losgelegt {meanOf("procrast")}</span>
+        <span className="badge small">Ø Lautstärke {meanOf("loud")}/5</span>
+        <span className="badge small">Ø Losgelegt {meanOf("procrast")}/5</span>
       </div>
     </div>
   );

@@ -599,14 +599,29 @@ button.matrix-title:hover{text-decoration:underline}
 .drag-ghost{opacity:.4}
 .drag-chosen{box-shadow:0 0 0 2px var(--accent);border-radius:14px}
 
-/* ===== Check-in Verlauf ===== */
-.hist-bars{display:flex;align-items:flex-end;gap:5px;height:82px;padding:6px 2px;background:#0a101b;border:1px solid #1b2336;border-radius:12px}
-.hist-col{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%}
-.hist-bar{width:100%;max-width:22px;border-radius:6px 6px 3px 3px;transition:height .3s ease}
-.hist-bar.band-hoch-belastet{background:linear-gradient(180deg,#f87171,#ef4444)}
-.hist-bar.band-angespannt{background:linear-gradient(180deg,#fcd34d,#eab308)}
-.hist-bar.band-solide{background:linear-gradient(180deg,#4ade80,#22c55e)}
-.hist-bar.band-gut{background:linear-gradient(180deg,#67e8f9,#06b6d4)}
+/* ===== Check-in Verlauf (beschriftetes Balkendiagramm) ===== */
+.chart{display:flex;gap:8px;margin-top:12px}
+.chart-yaxis{display:flex;flex-direction:column;justify-content:space-between;height:130px;font-size:10px;color:var(--muted);text-align:right;padding-top:14px}
+.chart-plot{position:relative;flex:1;padding-top:14px}
+.chart-grid{position:absolute;left:0;right:0;top:14px;height:130px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
+.chart-grid span{height:0;border-top:1px dashed rgba(255,255,255,.08)}
+.chart-bars{position:relative;display:flex;align-items:flex-end;gap:6px;height:130px}
+.chart-col{position:relative;flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.chart-val{font-size:10px;color:var(--muted);margin-bottom:3px;font-variant-numeric:tabular-nums}
+.chart-bar{width:100%;max-width:26px;min-height:4px;border-radius:6px 6px 2px 2px;transition:height .3s ease}
+.chart-bar.band-hoch-belastet{background:linear-gradient(180deg,#f87171,#ef4444)}
+.chart-bar.band-angespannt{background:linear-gradient(180deg,#fcd34d,#eab308)}
+.chart-bar.band-solide{background:linear-gradient(180deg,#4ade80,#22c55e)}
+.chart-bar.band-gut{background:linear-gradient(180deg,#67e8f9,#06b6d4)}
+.chart-xlabel{position:absolute;bottom:-18px;font-size:9px;color:var(--muted);white-space:nowrap;transform:rotate(-45deg);transform-origin:center}
+.chart{margin-bottom:26px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11px;color:var(--muted)}
+.chart-legend span{display:inline-flex;align-items:center;gap:5px}
+.chart-legend .lg{width:11px;height:11px;border-radius:3px;display:inline-block}
+.chart-legend .lg.band-hoch-belastet{background:#ef4444}
+.chart-legend .lg.band-angespannt{background:#eab308}
+.chart-legend .lg.band-solide{background:#22c55e}
+.chart-legend .lg.band-gut{background:#06b6d4}
 
 /* ===== Fokus-Vollbild (Jetzt-Modus) ===== */
 .focus-overlay{
