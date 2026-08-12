@@ -865,6 +865,14 @@ const sortedToday = useMemo(() => {
   return [...state.planner.today].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }, [state.planner.today]);
 
+  // Was ist JETZT dran? Laufender Timer, sonst erste offene Aufgabe.
+  const currentId = useMemo(() => {
+    const act = state.timers?.activeId;
+    if (act && sortedToday.some(t => t.id === act && !t.isBreak)) return act;
+    const firstOpen = sortedToday.find(t => !t.isBreak && !t.done);
+    return firstOpen?.id || null;
+  }, [sortedToday, state.timers]);
+
   const last7 = useMemo(() => {
     const now = Date.now();
     return state.journal.filter(j => now - new Date(j.dateISO).getTime() <= 7 * 24 * 3600 * 1000);
@@ -913,6 +921,7 @@ const sortedToday = useMemo(() => {
               api={api}
               list="today"
               item={it}
+              current={it.id === currentId}
               onToggle={(id) => api.plannerToggle("today", id)}
               onDelete={(id) => api.plannerDelete("today", id)}
               onMove={(id, dir) => api.plannerMove("today", id, dir)}
@@ -978,13 +987,14 @@ function QuickAddToday({ api }) {
 
 /* --- Minimaler Row-Renderer nur fürs Dashboard --- */
 /* --- Minimaler Row-Renderer nur fürs Dashboard (übersichtlich) --- */
-function _PlannerRowMini({ item, onToggle, api }) {
+function _PlannerRowMini({ item, onToggle, api, current }) {
   // Pause kompakt darstellen (positiv gerahmt)
   if (item.isBreak) {
     return (
-      <li className="item overview-task is-break">
+      <li className={`item overview-task is-break ${current ? "is-current" : ""}`}>
         <div className="row top">
           <span className="task-title">🌿 {item.title || "Pause"}</span>
+          {current && <span className="now-badge">▶ Jetzt</span>}
         </div>
         <div className="row meta">
           <span className="badge small break-badge">⏱ {item.durationMin || 10} Min · Erholung</span>
@@ -1011,7 +1021,7 @@ function _PlannerRowMini({ item, onToggle, api }) {
     item.prio === "NDNW" ? "c-ndnw" : "";
 
   return (
-    <li className={`item overview-task ${prioClass}`}>
+    <li className={`item overview-task ${prioClass} ${current && !item.done ? "is-current" : ""} ${item.done ? "is-done" : ""}`}>
       {/* Zeile 1: Checkbox + Name */}
       <div className="row top">
         <input
@@ -1024,6 +1034,7 @@ function _PlannerRowMini({ item, onToggle, api }) {
         <span className={`task-title ${item.done ? "done" : ""}`}>
           {item.title || "Ohne Titel"}
         </span>
+        {current && !item.done && <span className="now-badge">▶ Jetzt dran</span>}
       </div>
 
       {/* Zeile 2: Dauer · PRIO · Deadline (rechts) */}
