@@ -705,7 +705,7 @@ function migrate(s) {
   if (!("focusId" in out.ui)) out.ui.focusId = null;
   if (!("edit" in out.ui)) out.ui.edit = null;
   // entfernte Routen auf Home zurücksetzen
-  if (!["home", "planner", "calendar", "inbox", "stress", "checkin", "review"].includes(out.ui.route)) {
+  if (!["home", "planner", "calendar", "stress", "checkin", "review"].includes(out.ui.route)) {
     out.ui.route = "home";
   }
 
@@ -827,7 +827,7 @@ export default function App() {
         <aside className="panel">
           <div className="menu-title" id="navTitle">Navigation</div>
           <ul className="menu-list">
-            {["home", "planner", "calendar", "inbox", "stress", "checkin", "review"].map(r => (
+            {["home", "planner", "calendar", "stress", "checkin", "review"].map(r => (
               <li key={r}>
                 <button className={`menu-btn ${state.ui.route === r ? "active" : ""}`} onClick={() => { api.setRoute(r); setMenuOpen(false); }}>{label(r)}</button>
               </li>
@@ -840,7 +840,6 @@ export default function App() {
       <div className="wrap grid">
         {state.ui.route === "home" && <Dashboard state={state} api={api} go={api.setRoute} todayDone={todayDone} todayTotal={todayTotal} showStressNudge={showStressNudge} />}
         {state.ui.route === "planner" && <PlannerView state={state} api={api} />}
-        {state.ui.route === "inbox" && <InboxView state={state} api={api} />}
         {state.ui.route === "stress" && <StressView onAcknowledge={api.touchStressNudge} />}
         {state.ui.route === "checkin" && <CheckinView api={api} last={state.checkins[0]} checkins={state.checkins} />}
         {state.ui.route === "review" && <ReviewView state={state} api={api} />}
@@ -948,9 +947,9 @@ const sortedToday = useMemo(() => {
       </div>
 
       <div className="card">
-        <strong>Gedanken-Inbox</strong>
-        <p className="muted">{state.inbox.length} offen · später zu Aufgaben machen</p>
-        <button className="btn" onClick={() => go("inbox")}>Öffnen</button>
+        <strong>Gedanken-Auffangbox</strong>
+        <p className="muted">{state.inbox.length} geparkt · im Tagesplan zu Aufgaben machen</p>
+        <button className="btn" onClick={() => go("planner")}>Zum Tagesplan</button>
       </div>
     </>
   );
@@ -1044,7 +1043,7 @@ function PlannerView({ state, api }) {
 
   return (
     <>
-      <QuickThought api={api} />
+      <GedankenBox state={state} api={api} />
 
       <div className="card">
         <strong>Arbeitszeit heute</strong>
@@ -1141,19 +1140,33 @@ function PlannerView({ state, api }) {
   );
 }
 
-/* ---------- Quick-Capture: Gedanke → Inbox ---------- */
-function QuickThought({ api }) {
+/* ---------- Gedanken-Auffangbox (Quick-Capture + zu Aufgabe machen) ---------- */
+function GedankenBox({ state, api }) {
   const [v, setV] = useState("");
   const add = () => { const t = v.trim(); if (!t) return; api.inboxAdd(t); setV(""); };
+  const items = state.inbox || [];
   return (
     <div className="card quickthought">
-      <strong>💭 Gedanke reinwerfen</strong>
-      <p className="muted">Ohne Prio, ohne Datum – landet in der Inbox, später machst du Aufgaben draus.</p>
+      <strong>💭 Gedanken-Auffangbox</strong>
+      <p className="muted">Ohne Prio, ohne Datum. Einfach reinwerfen – später einen Gedanken zur Aufgabe machen.</p>
       <div className="row wrap mt8">
         <input className="input" placeholder="Was geht dir durch den Kopf?" value={v}
           onChange={e => setV(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} />
         <button className="btn btn-primary" onClick={add} type="button">Parken</button>
       </div>
+      {items.length > 0 && (
+        <ul className="list mt8">
+          {items.map(it => (
+            <li key={it.id} className="item gedanke">
+              <span className="gedanke-text">{it.text}</span>
+              <div className="row gap gedanke-actions">
+                <button className="btn opt" onClick={() => api.inboxToBacklog(it.id)} type="button">→ Aufgabe</button>
+                <button className="btn opt danger" title="Verwerfen" onClick={() => api.inboxRemove(it.id)} type="button">🗑</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
