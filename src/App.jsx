@@ -247,6 +247,25 @@ function computeBudgetToday(state) {
   return { workMin, breakMin, total, target, pct };
 }
 
+/* ---------- Duplikat-Sperre: jede Aufgaben-ID nur in EINER Liste ----------
+   Reihenfolge der Priorität beim Behalten: today → backlog → pool.
+   Pausen (isBreak) bleiben unangetastet. ------------------------------------ */
+function _dedupePlanner(planner) {
+  const seen = new Set();
+  const out = { ...planner };
+  for (const list of ["today", "backlog", "pool"]) {
+    const cleaned = [];
+    for (const it of (planner[list] || [])) {
+      if (it.isBreak) { cleaned.push(it); continue; }
+      if (seen.has(it.id)) continue; // schon in dieser oder einer früheren Liste → verwerfen
+      seen.add(it.id);
+      cleaned.push(it);
+    }
+    out[list] = cleaned;
+  }
+  return out;
+}
+
 /* =========================================================
    Store / Actions
    ========================================================= */
@@ -289,16 +308,22 @@ function useStore() {
   const setListOrder = (list, ids) => setState(s => {
     const arr = s.planner[list] || [];
     const byId = new Map(arr.map(x => [x.id, x]));
-    const ordered = ids.map(id => byId.get(id)).filter(Boolean);
+    // IDs deduplizieren (falls das DOM doch mal eine Dublette liefert)
+    const seen = new Set();
+    const ordered = [];
+    for (const id of ids) {
+      if (seen.has(id)) continue;
+      const o = byId.get(id);
+      if (o) { seen.add(id); ordered.push(o); }
+    }
     if (list === "today") {
-      // Pausen rausnehmen, Aufgaben neu nummerieren, Pausen per Reflow neu setzen
       const tasksOnly = ordered.filter(x => !x.isBreak).map((t, i) => ({ ...t, order: i }));
       const reflowed = _reflowToday(tasksOnly, s.settings);
-      return { ...s, planner: { ...s.planner, today: reflowed } };
+      return { ...s, planner: _dedupePlanner({ ...s.planner, today: reflowed }) };
     }
-    const rest = arr.filter(x => !ids.includes(x.id));
+    const rest = arr.filter(x => !seen.has(x.id));
     const next = [...ordered, ...rest].map((x, i) => ({ ...x, order: i }));
-    return { ...s, planner: { ...s.planner, [list]: next } };
+    return { ...s, planner: _dedupePlanner({ ...s.planner, [list]: next }) };
   });
 
   // Helper: normalisiere Prio
@@ -426,7 +451,7 @@ const moveItem = (from, to, id) => setState(s => {
   if (from === "today") planner[from] = _sortTodayByRules(planner[from], s.settings);
   if (to   === "today") planner[to]   = _sortTodayByRules(planner[to],   s.settings);
 
-  return { ...s, planner };
+  return { ...s, planner: _dedupePlanner(planner) };
 });
 
   /* ---------- Inbox ---------- */
@@ -482,17 +507,20 @@ const autoPlanToday = (overrideMinutes) => {
     const keptTaskIds = new Set(todaySorted.filter(x => !x.isBreak).map(x => x.id));
     const overflow = candidates.filter(t => !keptTaskIds.has(t.id));
 
-    const newPool    = [...overflow].sort(_sortByDuePrioDurPublic);
-    const newBacklog = (s.planner.backlog || []).filter(x => !keptTaskIds.has(x.id));
+    const newPool = [...overflow].sort(_sortByDuePrioDurPublic);
+    // FIX Dublette: alle Kandidaten (nicht nur die gehaltenen) aus dem Backlog nehmen –
+    // sie leben jetzt in "today" (gehalten) oder "pool" (Overflow), nicht mehr doppelt.
+    const candidateIds = new Set(candidates.map(c => c.id));
+    const newBacklog = (s.planner.backlog || []).filter(x => !candidateIds.has(x.id));
 
     return {
       ...s,
-      planner: {
+      planner: _dedupePlanner({
         ...s.planner,
         today: todaySorted,
         backlog: newBacklog,
         pool: newPool
-      }
+      })
     };
   });
 };
@@ -656,6 +684,9 @@ function migrate(s) {
       spentSec: Number(it.spentSec) || 0
     }));
   }
+
+  // Bereits vorhandene Duplikate (aus früherem Bug) beim Laden bereinigen
+  out.planner = _dedupePlanner(out.planner);
 
   out.profile ||= { nickname: "", consent: false };
   out.inbox ||= [];
@@ -1314,7 +1345,7 @@ function _dndReorderOrMove(api, { from, to, draggedId, beforeId }) {
       // Quelle ggf. reflowen (wenn today)
       if (from === "today") planner[from] = _reflowTodayDnD(_dndNormalizeOrdersDnD("today", planner[from]), s.settings);
 
-      return { ...s, planner };
+      return { ...s, planner: _dedupePlanner(planner) };
     }
 
     // Reorder innerhalb derselben Liste
@@ -1340,7 +1371,7 @@ function _dndReorderOrMove(api, { from, to, draggedId, beforeId }) {
     }
 
     planner[to] = dst;
-    return { ...s, planner };
+    return { ...s, planner: _dedupePlanner(planner) };
   });
 }
 
