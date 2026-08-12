@@ -200,6 +200,27 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .item.task.prio-ndw  { background:var(--prio-ndw-bg); border-left:3px solid var(--prio-ndw-l); }
 .item.task.prio-ndnw { background:var(--prio-ndnw-bg);border-left:3px solid var(--prio-ndnw-l); }
 
+/* ------- Aufgaben-Hierarchie: Name > Zeit > Prio > Optionen ------- */
+.item.task .row.top{justify-content:flex-start;gap:4px;margin-bottom:2px}
+.item.task .task-title{font-size:1.15rem;font-weight:800;letter-spacing:.1px}
+
+/* Sekundär: Zeit · Prio · Deadline (dezent) */
+.item.task .task-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 10px;padding-left:2px}
+.item.task .tm-time{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.item.task .tm-prio{font-size:.66rem;font-weight:700;letter-spacing:.4px;padding:1px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.item.task .tm-prio.prio-dw{color:var(--prio-dw-l);border-color:var(--prio-dw-l)}
+.item.task .tm-prio.prio-ndw{color:var(--prio-ndw-l);border-color:var(--prio-ndw-l)}
+.item.task .tm-prio.prio-dnw{color:var(--prio-dnw-l);border-color:var(--prio-dnw-l)}
+.item.task .tm-prio.prio-ndnw{color:var(--prio-ndnw-l);border-color:var(--prio-ndnw-l)}
+.item.task .tm-due{margin-left:auto;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* Tertiär: Optionen (klein, ghost) */
+.item.task .task-opts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.item.task .task-opts .btn.opt{padding:5px 10px;font-size:12px;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:9px}
+.item.task .task-opts .btn.opt:hover{color:var(--fg);border-color:var(--accent);filter:none}
+.item.task .task-opts .btn.opt.danger{margin-left:auto}
+.item.task .task-opts .btn.opt.danger:hover{color:#f87171;border-color:#f87171}
+
 /* --------------- Break items (positiv gerahmt) ------------- */
 .item.break{
   background:linear-gradient(180deg, rgba(34,197,94,.14), rgba(34,197,94,.06));

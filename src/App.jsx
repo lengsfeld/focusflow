@@ -1554,7 +1554,7 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
       className={`item task ${prioClass} ${dnd ? "sortable" : ""}`}
       data-id={item.id}
     >
-      {/* 1. Zeile: Griff + Checkbox + Taskname */}
+      {/* Primär: Griff + Checkbox + Name */}
       <div className="row top">
         {dnd && <span className="drag-handle" title="Zum Umsortieren ziehen" aria-label="Ziehen">⠿</span>}
         <input
@@ -1566,37 +1566,31 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
         <span className={`task-title ${item.done ? "done" : ""}`}>{item.title}</span>
       </div>
 
-      {/* 2. Zeile: Dauer + Prio (kurz) + Deadline */}
-      <div className="row mid">
-        <div className="muted">
-          ⏱ {item.durationMin || 0} Min
+      {/* Sekundär: Zeit · Prio · Deadline */}
+      {(item.durationMin || prioShort || item.dueISO) && (
+        <div className="task-meta">
+          {item.durationMin ? <span className="tm-time">⏱ {item.durationMin} Min</span> : null}
+          {prioShort && <span className={`tm-prio ${prioClass}`}>{prioShort}</span>}
+          {item.dueISO && <span className="tm-due">📅 {_dndFmtDate(item.dueISO)}</span>}
         </div>
-        {prioShort && <span className="badge small">{prioShort}</span>}
-        {item.dueISO && (
-          <div className="muted deadline">
-            📅 bis {_dndFmtDate(item.dueISO)}
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* 3. Zeile: Buttons nebeneinander */}
-      <div className="row bottom actions">
+      {/* Tertiär: Optionen (dezent) */}
+      <div className="task-opts">
         {list === "today" && (
-          <button className="btn" title="Fokus-Vollbild" onClick={() => api.setFocus(item.id)} type="button">🎯 Fokus</button>
+          <button className="btn opt" title="Fokus-Vollbild" onClick={() => api.setFocus(item.id)} type="button">🎯 Fokus</button>
         )}
-        <button className="btn ghost" title="nach oben" onClick={() => onMove(item.id, -1)} type="button">↑</button>
-        <button className="btn ghost" title="nach unten" onClick={() => onMove(item.id, +1)} type="button">↓</button>
+        <button className="btn opt" title="Bearbeiten" onClick={() => api.setEdit(list, item.id)} type="button">✏️ Bearbeiten</button>
         {list !== "today" && (
-          <button className="btn" onClick={() => _dndReorderOrMove(api, { from: list, to: "today", draggedId: item.id })} type="button">→ Heute</button>
+          <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "today", draggedId: item.id })} type="button">→ Heute</button>
         )}
         {list !== "backlog" && (
-          <button className="btn" onClick={() => _dndReorderOrMove(api, { from: list, to: "backlog", draggedId: item.id })} type="button">→ Backlog</button>
+          <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "backlog", draggedId: item.id })} type="button">→ Backlog</button>
         )}
         {list !== "pool" && (
-          <button className="btn" onClick={() => _dndReorderOrMove(api, { from: list, to: "pool", draggedId: item.id })} type="button">→ Pool</button>
+          <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "pool", draggedId: item.id })} type="button">→ Pool</button>
         )}
-        <button className="btn" title="Bearbeiten" onClick={() => api.setEdit(list, item.id)} type="button">✏️</button>
-        <button className="btn" onClick={() => onDelete(item.id)} type="button">Löschen</button>
+        <button className="btn opt danger" title="Löschen" onClick={() => onDelete(item.id)} type="button">🗑</button>
       </div>
 
       {/* Live-Timer nur im Tagesplan (Heute) */}
