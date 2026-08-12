@@ -507,11 +507,10 @@ const autoPlanToday = (overrideMinutes) => {
     const keptTaskIds = new Set(todaySorted.filter(x => !x.isBreak).map(x => x.id));
     const overflow = candidates.filter(t => !keptTaskIds.has(t.id));
 
-    const newPool = [...overflow].sort(_sortByDuePrioDurPublic);
-    // FIX Dublette: alle Kandidaten (nicht nur die gehaltenen) aus dem Backlog nehmen –
-    // sie leben jetzt in "today" (gehalten) oder "pool" (Overflow), nicht mehr doppelt.
+    // Nicht geplante Aufgaben wandern in "Später" (Backlog) – Pool entfällt.
     const candidateIds = new Set(candidates.map(c => c.id));
-    const newBacklog = (s.planner.backlog || []).filter(x => !candidateIds.has(x.id));
+    const backlogKeep = (s.planner.backlog || []).filter(x => !candidateIds.has(x.id)); // z. B. erledigte
+    const newBacklog = [...backlogKeep, ...overflow].sort(_sortByDuePrioDurPublic);
 
     return {
       ...s,
@@ -519,7 +518,7 @@ const autoPlanToday = (overrideMinutes) => {
         ...s.planner,
         today: todaySorted,
         backlog: newBacklog,
-        pool: newPool
+        pool: []
       })
     };
   });
@@ -685,6 +684,12 @@ function migrate(s) {
     }));
   }
 
+  // Pool in "Später" (Backlog) zusammenführen – Pool als Konzept entfällt
+  if (Array.isArray(out.planner.pool) && out.planner.pool.length) {
+    out.planner.backlog = [...(out.planner.backlog || []), ...out.planner.pool];
+  }
+  out.planner.pool = [];
+
   // Bereits vorhandene Duplikate (aus früherem Bug) beim Laden bereinigen
   out.planner = _dedupePlanner(out.planner);
 
@@ -699,6 +704,10 @@ function migrate(s) {
   out.ui ||= { route: "home", focusId: null };
   if (!("focusId" in out.ui)) out.ui.focusId = null;
   if (!("edit" in out.ui)) out.ui.edit = null;
+  // entfernte Routen auf Home zurücksetzen
+  if (!["home", "planner", "calendar", "inbox", "stress", "checkin", "review"].includes(out.ui.route)) {
+    out.ui.route = "home";
+  }
 
   return out;
 }
@@ -818,7 +827,7 @@ export default function App() {
         <aside className="panel">
           <div className="menu-title" id="navTitle">Navigation</div>
           <ul className="menu-list">
-            {["home", "planner", "matrix", "calendar", "inbox", "stress", "journal", "checkin", "review"].map(r => (
+            {["home", "planner", "calendar", "inbox", "stress", "checkin", "review"].map(r => (
               <li key={r}>
                 <button className={`menu-btn ${state.ui.route === r ? "active" : ""}`} onClick={() => { api.setRoute(r); setMenuOpen(false); }}>{label(r)}</button>
               </li>
@@ -833,10 +842,8 @@ export default function App() {
         {state.ui.route === "planner" && <PlannerView state={state} api={api} />}
         {state.ui.route === "inbox" && <InboxView state={state} api={api} />}
         {state.ui.route === "stress" && <StressView onAcknowledge={api.touchStressNudge} />}
-        {state.ui.route === "journal" && <JournalView state={state} api={api} />}
         {state.ui.route === "checkin" && <CheckinView api={api} last={state.checkins[0]} checkins={state.checkins} />}
         {state.ui.route === "review" && <ReviewView state={state} api={api} />}
-        {state.ui.route === "matrix" && <MatrixView state={state} api={api} />}
         {state.ui.route === "calendar" && <WeekCalendarView state={state} api={api} />}
       </div>
 
@@ -883,7 +890,6 @@ const sortedToday = useMemo(() => {
         <h2 className="h1">Hi {state.profile.nickname || "Du"} 👋</h2>
         <p className="muted">Selbsthilfe • Struktur • Fokus</p>
         <div className="row wrap mt8">
-          <button className="btn" onClick={() => go("matrix")}>▦ Matrix</button>
           <button className="btn" onClick={() => go("calendar")}>🗓 Kalender</button>
         </div>
         {showStressNudge && (
@@ -891,7 +897,7 @@ const sortedToday = useMemo(() => {
             <div className="nudge-title">2-Stunden-Reminder</div>
             <div className="nudge-actions">
               <button className="btn btn-primary" onClick={() => go("stress")}>3-Min Atemübung</button>
-              <button className="btn" onClick={() => go("journal")}>Kurz notieren</button>
+              <button className="btn" onClick={() => go("checkin")}>Check-in</button>
             </div>
           </div>
         )}
@@ -933,25 +939,17 @@ const sortedToday = useMemo(() => {
         </div>
       </div>
 
-      <div className="grid two">
-        <div className="card">
-          <strong>Self-Check-in</strong>
-          <p className="muted">{todayCheckin ? `Heute erledigt · Score ${todayCheckin.score}/100` : "Noch kein Check-in heute."}</p>
-          <button className="btn btn-primary" onClick={() => go("checkin")}>
-            {todayCheckin ? "Ansehen / erneut" : "Jetzt ausfüllen (1 Min)"}
-          </button>
-        </div>
-
-        <div className="card">
-          <strong>Journal</strong>
-          <p className="muted">Ø 7 Tage — Stimmung {moodAvg7} · Fokus {focusAvg7}</p>
-          <button className="btn" onClick={() => go("journal")}>Öffnen</button>
-        </div>
+      <div className="card">
+        <strong>Self-Check-in</strong>
+        <p className="muted">{todayCheckin ? `Heute erledigt · Score ${todayCheckin.score}/100` : "Noch kein Check-in heute."}</p>
+        <button className="btn btn-primary" onClick={() => go("checkin")}>
+          {todayCheckin ? "Ansehen / erneut" : "Jetzt ausfüllen (1 Min)"}
+        </button>
       </div>
 
       <div className="card">
-        <strong>Ablenkungen</strong>
-        <p className="muted">{state.inbox.length} offen · bitte klassifizieren</p>
+        <strong>Gedanken-Inbox</strong>
+        <p className="muted">{state.inbox.length} offen · später zu Aufgaben machen</p>
         <button className="btn" onClick={() => go("inbox")}>Öffnen</button>
       </div>
     </>
@@ -1044,11 +1042,10 @@ function PlannerView({ state, api }) {
 
   const budget = computeBudgetToday(state);
 
-  const poolRef = useRef(null);
-  useSortableList(poolRef, { list: "pool", api, enabled: true });
-
   return (
     <>
+      <QuickThought api={api} />
+
       <div className="card">
         <strong>Arbeitszeit heute</strong>
         <div className="row wrap mt8">
@@ -1109,7 +1106,7 @@ function PlannerView({ state, api }) {
       </div>
 
       <h2 className="h1">Tagesplan</h2>
-      <p className="muted">Links: Heute (mit Pausen & Drag&Drop). Rechts oben: Backlog. Rechts unten: Pool.</p>
+      <p className="muted">Links „Heute" (mit Pausen), rechts „Später". Umsortieren am Griff ⠿, verschieben per Button.</p>
 
       <div className="grid two">
         {/* Heute */}
@@ -1126,52 +1123,38 @@ function PlannerView({ state, api }) {
           dnd
         />
 
-        {/* Rechts: Backlog + Pool */}
-        <div>
-          <_PlannerColumn
-            api={api}
-            listKey="backlog"
-            title="Backlog"
-            items={state.planner.backlog}
-            onAdd={(t, p, dur, due) => api.plannerAdd("backlog", t, p, dur, due)}
-            onToggle={(id) => api.plannerToggle("backlog", id)}
-            onDelete={(id) => api.plannerDelete("backlog", id)}
-            onMove={(id, dir) => api.plannerMove("backlog", id, dir)}
-            allowAdd
-            dnd
-          />
-
-          {/* Pool */}
-          <div className="card mt12">
-            <strong>Pool (für später)</strong>
-            <p className="muted">Zum Umsortieren am Griff ⠿ ziehen. Verschieben nach Heute/Backlog per Button.</p>
-            <ul className="list mt8" ref={poolRef}>
-              {state.planner.pool.map(it => (
-                <li
-                  key={it.id}
-                  className="item sortable"
-                  data-id={it.id}
-                >
-                  <div className="title"><span className="drag-handle" title="Zum Umsortieren ziehen">⠿</span> {it.title}</div>
-                  <div className="muted">
-                    {_dndPrioLabel(it.prio)}
-                    {it.durationMin ? ` · ⏱️ ${it.durationMin} Min` : ""}
-                    {it.dueISO ? ` · 📅 bis ${_dndFmtDate(it.dueISO)}` : ""}
-                  </div>
-                  <div className="row wrap gap actions">
-                    <button className="btn btn-primary" type="button" onClick={() => _dndReorderOrMove(api, { from: "pool", to: "today", draggedId: it.id })}>→ Heute</button>
-                    <button className="btn" type="button" onClick={() => _dndReorderOrMove(api, { from: "pool", to: "backlog", draggedId: it.id })}>→ Backlog</button>
-                    <button className="btn" type="button" title="Bearbeiten" onClick={() => api.setEdit("pool", it.id)}>✏️</button>
-                    <button className="btn" type="button" onClick={() => api.plannerDelete("pool", it.id)}>Löschen</button>
-                  </div>
-                </li>
-              ))}
-              {!state.planner.pool.length && <div className="muted">Aktuell leer.</div>}
-            </ul>
-          </div>
-        </div>
+        {/* Später (ehemals Backlog + Pool) */}
+        <_PlannerColumn
+          api={api}
+          listKey="backlog"
+          title="Später"
+          items={state.planner.backlog}
+          onAdd={(t, p, dur, due) => api.plannerAdd("backlog", t, p, dur, due)}
+          onToggle={(id) => api.plannerToggle("backlog", id)}
+          onDelete={(id) => api.plannerDelete("backlog", id)}
+          onMove={(id, dir) => api.plannerMove("backlog", id, dir)}
+          allowAdd
+          dnd
+        />
       </div>
     </>
+  );
+}
+
+/* ---------- Quick-Capture: Gedanke → Inbox ---------- */
+function QuickThought({ api }) {
+  const [v, setV] = useState("");
+  const add = () => { const t = v.trim(); if (!t) return; api.inboxAdd(t); setV(""); };
+  return (
+    <div className="card quickthought">
+      <strong>💭 Gedanke reinwerfen</strong>
+      <p className="muted">Ohne Prio, ohne Datum – landet in der Inbox, später machst du Aufgaben draus.</p>
+      <div className="row wrap mt8">
+        <input className="input" placeholder="Was geht dir durch den Kopf?" value={v}
+          onChange={e => setV(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} />
+        <button className="btn btn-primary" onClick={add} type="button">Parken</button>
+      </div>
+    </div>
   );
 }
 
@@ -1585,10 +1568,7 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
           <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "today", draggedId: item.id })} type="button">→ Heute</button>
         )}
         {list !== "backlog" && (
-          <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "backlog", draggedId: item.id })} type="button">→ Backlog</button>
-        )}
-        {list !== "pool" && (
-          <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "pool", draggedId: item.id })} type="button">→ Pool</button>
+          <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "backlog", draggedId: item.id })} type="button">→ Später</button>
         )}
         <button className="btn opt danger" title="Löschen" onClick={() => onDelete(item.id)} type="button">🗑</button>
       </div>

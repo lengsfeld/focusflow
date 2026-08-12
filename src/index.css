@@ -487,6 +487,9 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* ===== Empfehlungen (tiefer) ===== */
 .advice-how{font-size:13px;color:#a7f3d0;background:rgba(34,197,94,.08);border-left:3px solid #22c55e;border-radius:8px;padding:6px 10px}
 
+/* ===== Quick-Capture Gedanke ===== */
+.quickthought .row .input{flex:1;min-width:0}
+
 /* ===== Eingabemaske: Prio-Kacheln + Datepicker ===== */
 .add-form{display:flex;flex-direction:column;gap:10px}
 .add-form-row{align-items:center}
