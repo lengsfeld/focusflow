@@ -905,6 +905,7 @@ const sortedToday = useMemo(() => {
       <div className="card">
         <strong>Heute (geplant)</strong>
         <p className="muted">Automatische Pause nach 1,5 h Arbeit. Pausenlänge: {state.settings.breakMinutes} Min.</p>
+        <QuickAddToday api={api} />
         <ul className="list">
           {sortedToday.map(it => (
             <PlannerRow
@@ -952,6 +953,26 @@ const sortedToday = useMemo(() => {
         <button className="btn" onClick={() => go("planner")}>Zum Tagesplan</button>
       </div>
     </>
+  );
+}
+
+/* --- Schnell-Eingabe: Aufgabe direkt in "Heute" --- */
+function QuickAddToday({ api }) {
+  const [v, setV] = useState("");
+  const [dur, setDur] = useState("");
+  const add = () => {
+    const t = v.trim(); if (!t) return;
+    api.plannerAdd("today", t, "", dur ? +dur : null, null);
+    setV(""); setDur("");
+  };
+  return (
+    <div className="row wrap mt8 quickadd-today">
+      <input className="input" placeholder="Neue Aufgabe für heute…" value={v}
+        onChange={e => setV(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} />
+      <input className="input num" type="number" min="5" step="5" placeholder="Min" value={dur}
+        onChange={e => setDur(e.target.value)} />
+      <button className="btn btn-primary" onClick={add} type="button">+ Heute</button>
+    </div>
   );
 }
 

@@ -489,6 +489,8 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 
 /* ===== Quick-Capture Gedanke ===== */
 .quickthought .row .input{flex:1;min-width:0}
+.quickadd-today .input{flex:1;min-width:120px}
+.quickadd-today .input.num{flex:0 0 auto;width:80px}
 .item.gedanke{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .gedanke-text{flex:1;min-width:0}
 .gedanke-actions{flex:0 0 auto}
