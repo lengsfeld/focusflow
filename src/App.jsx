@@ -2296,7 +2296,8 @@ const CHECK_SCORED = CHECK_QUESTIONS.map(q => q.k);
 
 function CheckinView({ api, last, checkins = [] }) {
   const [vals, setVals] = useState({ focus: 3, thoughts: 3, tension: 3, stimuli: 3, impulse: 3, social: 3, energy: 3, mood: 3, procrast: 3, loud: 3 });
-  const setVal = (k, v) => setVals(s => ({ ...s, [k]: +v }));
+  const [evaluated, setEvaluated] = useState(false);
+  const setVal = (k, v) => { setVals(s => ({ ...s, [k]: +v })); setEvaluated(false); };
   const [savedMsg, setSavedMsg] = useState(false);
 
   const score = useMemo(() => {
@@ -2304,15 +2305,12 @@ function CheckinView({ api, last, checkins = [] }) {
     return Math.round((sum / (CHECK_SCORED.length * 5)) * 100);
   }, [vals]);
   const adv = useMemo(() => computeAdviceADHD(vals), [vals]);
-  const band = useMemo(() => scoreBand(score), [score]);
 
   const save = () => { api.addCheckin({ type: "adhd", ...vals }); setSavedMsg(true); setTimeout(() => setSavedMsg(false), 2500); };
 
   return (
     <>
       <h2 className="h1">Micro-Check-in</h2>
-
-      <CheckinSummary vals={vals} score={score} />
 
       <div className="card">
         {CHECK_QUESTIONS.map(q => (
@@ -2325,24 +2323,37 @@ function CheckinView({ api, last, checkins = [] }) {
 
         <div className="row between mt8">
           <strong>Score: {score}/100</strong>
-          <button className="btn btn-primary" onClick={save}>Speichern</button>
+          <div className="row gap">
+            <button className="btn btn-primary" onClick={() => setEvaluated(true)}>🔎 Auswerten</button>
+            <button className="btn" onClick={save}>Speichern</button>
+          </div>
         </div>
         {savedMsg && <p className="muted mt6">✓ Gespeichert.</p>}
       </div>
 
-      <div className="card">
-        <strong>Empfehlungen</strong>
-        <p className="muted">Zugeschnitten auf deine schwächsten Werte — nach ADHS-Wissensstand.</p>
-        <ul className="list mt8">
-          {adv.map((a, i) => (
-            <li key={i} className="item advice">
-              <div className="title">💡 {a.title}</div>
-              <div className="muted mt6">{a.why}</div>
-              {a.how && <div className="advice-how mt6">→ {a.how}</div>}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {evaluated ? (
+        <>
+          <CheckinSummary vals={vals} score={score} />
+
+          <div className="card">
+            <strong>Empfehlungen</strong>
+            <p className="muted">Zugeschnitten auf deine schwächsten Werte — nach ADHS-Wissensstand.</p>
+            <ul className="list mt8">
+              {adv.map((a, i) => (
+                <li key={i} className="item advice">
+                  <div className="title">💡 {a.title}</div>
+                  <div className="muted mt6">{a.why}</div>
+                  {a.how && <div className="advice-how mt6">→ {a.how}</div>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      ) : (
+        <p className="muted" style={{ textAlign: "center", margin: "4px 0 8px" }}>
+          Stell die Regler ein und tippe auf <strong>Auswerten</strong>, um deine Zusammenfassung zu sehen.
+        </p>
+      )}
 
       <CheckinHistory checkins={checkins} />
 
