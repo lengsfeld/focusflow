@@ -2311,10 +2311,8 @@ function CheckinView({ api, last, checkins = [] }) {
   return (
     <>
       <h2 className="h1">Micro-Check-in</h2>
-      <div className="row gap mt8">
-        <span className={`badge metric band-${band.label.toLowerCase().replace(/\s+/g, '-')}`}>Score {score}</span>
-        <span className="muted">Status: {band.label} — {band.tone}.</span>
-      </div>
+
+      <CheckinSummary vals={vals} score={score} />
 
       <div className="card">
         {CHECK_QUESTIONS.map(q => (
@@ -2371,6 +2369,59 @@ function ScaleADHD({ label, value, set, lo, hi, marker }) {
       </div>
       <input type="range" min="1" max="5" step="0.5" value={value} onChange={e => set(e.target.value)} className="range color" />
       {(lo || hi) && <div className="scale-anchors muted"><span>{lo}</span><span>{hi}</span></div>}
+    </div>
+  );
+}
+
+/* ---------- Check-in: lebendige Zusammenfassung ---------- */
+const CHECKIN_NAMES = {
+  focus: "Fokus", thoughts: "Gedankenruhe", tension: "Lockerheit", stimuli: "Reizschutz",
+  impulse: "Dranbleiben", social: "Soziale Energie", energy: "Energie", mood: "Stimmung", procrast: "Ins Tun kommen",
+};
+function checkinSummary(vals, score) {
+  const scored = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood", "procrast"];
+  const arr = scored.map(k => ({ k, v: Number(vals[k]) || 0, name: CHECKIN_NAMES[k] }));
+  const low = arr.filter(x => x.v <= 2.5).sort((a, b) => a.v - b.v).slice(0, 3);
+  const high = arr.filter(x => x.v >= 4).sort((a, b) => b.v - a.v).slice(0, 3);
+  const loud = Number(vals.loud) || 0;
+  const band = scoreBand(score);
+
+  let headline;
+  if (band.label === "gut") headline = low.length ? `Insgesamt gut beisammen – nur ${low.map(x => x.name).join(" & ")} braucht etwas Aufmerksamkeit.` : "Rundum gut beisammen. Kurs halten.";
+  else if (band.label === "solide") headline = "Solide unterwegs – ein, zwei Stellschrauben, dann läuft's.";
+  else if (band.label === "angespannt") headline = "Merklich angespannt gerade. Kleine Struktur und eine Pause helfen.";
+  else headline = "Gerade richtig viel los. Erst runterkommen, dann klein anfangen.";
+
+  let loudNote = null;
+  if (loud >= 4) loudNote = "🔊 Innerlich ziemlich aufgedreht/laut – Bewegung und bewusstes Runterregulieren kann helfen.";
+  else if (loud <= 2) loudNote = "🔈 Innerlich eher leise/ruhig heute.";
+
+  return { band, low, high, loudNote, headline };
+}
+
+function CheckinSummary({ vals, score }) {
+  const s = checkinSummary(vals, score);
+  const bandCls = s.band.label.toLowerCase().replace(/\s+/g, '-');
+  return (
+    <div className={`card summary-card band-edge-${bandCls}`}>
+      <div className="row between">
+        <strong>So geht's dir gerade</strong>
+        <span className={`badge metric band-${bandCls}`}>Score {score}/100</span>
+      </div>
+      <p className="summary-headline">{s.headline}</p>
+      {s.high.length > 0 && (
+        <div className="summary-line">
+          <span className="summary-label">Trägt dich:</span>
+          {s.high.map(x => <span key={x.k} className="sum-chip high">{x.name}</span>)}
+        </div>
+      )}
+      {s.low.length > 0 && (
+        <div className="summary-line">
+          <span className="summary-label">Zieht gerade:</span>
+          {s.low.map(x => <span key={x.k} className="sum-chip low">{x.name}</span>)}
+        </div>
+      )}
+      {s.loudNote && <p className="muted summary-loud">{s.loudNote}</p>}
     </div>
   );
 }
