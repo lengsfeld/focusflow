@@ -2373,30 +2373,48 @@ function ScaleADHD({ label, value, set, lo, hi, marker }) {
   );
 }
 
-/* ---------- Check-in: lebendige Zusammenfassung ---------- */
+/* ---------- Check-in: lebendige, verständnisvolle Zusammenfassung ---------- */
 const CHECKIN_NAMES = {
   focus: "Fokus", thoughts: "Gedankenruhe", tension: "Lockerheit", stimuli: "Reizschutz",
   impulse: "Dranbleiben", social: "Soziale Energie", energy: "Energie", mood: "Stimmung", procrast: "Ins Tun kommen",
 };
+// Wie es sich anfühlt, wenn eine Dimension niedrig ist – normalisierend, ohne Schuld.
+const CHECKIN_FEEL_LOW = {
+  focus:    "Der Fokus rutscht dir weg, der Kopf springt von einem zum nächsten. Das ist kein Unwille – es ist gerade einfach schwer.",
+  thoughts: "Im Kopf sind viele Tabs gleichzeitig offen. Kein Wunder, dass es da drin laut und voll ist.",
+  tension:  "Der Körper ist angespannt – er trägt gerade mehr, als man von außen sieht.",
+  stimuli:  "Reize dringen ungefiltert durch, alles ist gerade ein bisschen zu viel auf einmal.",
+  impulse:  "Beim Thema zu bleiben kostet dich gerade echte Kraft – das ist anstrengend und du machst es trotzdem.",
+  social:   "Die soziale Batterie ist leer. Rückzug ist jetzt keine Schwäche, sondern ein echtes Bedürfnis.",
+  energy:   "Die Energie ist unten, der Tank ist einfach leer. Das darf gerade so sein.",
+  mood:     "Die Stimmung ist gedrückt und die Frustschwelle niedrig – ein schwerer Tag, das ist nachvollziehbar.",
+  procrast: "Der Start fällt schwer. Nicht, weil du nicht willst, sondern weil Anfangen bei ADHS die härteste Hürde überhaupt ist.",
+};
 function checkinSummary(vals, score) {
   const scored = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood", "procrast"];
-  const arr = scored.map(k => ({ k, v: Number(vals[k]) || 0, name: CHECKIN_NAMES[k] }));
+  const arr = scored.map(k => ({ k, v: Number(vals[k]) || 0, name: CHECKIN_NAMES[k], feel: CHECKIN_FEEL_LOW[k] }));
   const low = arr.filter(x => x.v <= 2.5).sort((a, b) => a.v - b.v).slice(0, 3);
   const high = arr.filter(x => x.v >= 4).sort((a, b) => b.v - a.v).slice(0, 3);
   const loud = Number(vals.loud) || 0;
   const band = scoreBand(score);
 
   let headline;
-  if (band.label === "gut") headline = low.length ? `Insgesamt gut beisammen – nur ${low.map(x => x.name).join(" & ")} braucht etwas Aufmerksamkeit.` : "Rundum gut beisammen. Kurs halten.";
-  else if (band.label === "solide") headline = "Solide unterwegs – ein, zwei Stellschrauben, dann läuft's.";
-  else if (band.label === "angespannt") headline = "Merklich angespannt gerade. Kleine Struktur und eine Pause helfen.";
-  else headline = "Gerade richtig viel los. Erst runterkommen, dann klein anfangen.";
+  if (band.label === "gut") headline = low.length
+    ? "Dir geht's im Großen und Ganzen gut gerade – ein paar Ecken zwicken, aber das meiste trägt dich."
+    : "Dir geht's gerade richtig gut – schön, das mal schwarz auf weiß zu sehen.";
+  else if (band.label === "solide") headline = "Du bist ganz gut beisammen. Ein paar Dinge kosten Kraft, der Rest hält dich.";
+  else if (band.label === "angespannt") headline = "Es ist gerade anstrengend für dich – und bei dem, was du eingegeben hast, ergibt das total Sinn.";
+  else headline = "Gerade liegt richtig viel auf dir. Dass sich das zäh und schwer anfühlt, ist absolut nachvollziehbar.";
 
   let loudNote = null;
-  if (loud >= 4) loudNote = "🔊 Innerlich ziemlich aufgedreht/laut – Bewegung und bewusstes Runterregulieren kann helfen.";
-  else if (loud <= 2) loudNote = "🔈 Innerlich eher leise/ruhig heute.";
+  if (loud >= 4) loudNote = "🔊 Innerlich bist du gerade ziemlich aufgedreht – erst Bewegung, dann bewusst runterregulieren nimmt den Druck.";
+  else if (loud <= 2) loudNote = "🔈 Innerlich ist es heute eher leise und ruhig.";
 
-  return { band, low, high, loudNote, headline };
+  const closeNote = (band.label === "angespannt" || band.label === "hoch belastet")
+    ? "Das ist eine Momentaufnahme von heute – kein Urteil über dich. Ein einziger kleiner Schritt reicht völlig."
+    : null;
+
+  return { band, low, high, loudNote, headline, closeNote };
 }
 
 function CheckinSummary({ vals, score }) {
@@ -2409,19 +2427,28 @@ function CheckinSummary({ vals, score }) {
         <span className={`badge metric band-${bandCls}`}>Score {score}/100</span>
       </div>
       <p className="summary-headline">{s.headline}</p>
+
       {s.high.length > 0 && (
-        <div className="summary-line">
-          <span className="summary-label">Trägt dich:</span>
+        <div className="summary-carry">
+          <span className="summary-label">Was dich trägt: </span>
           {s.high.map(x => <span key={x.k} className="sum-chip high">{x.name}</span>)}
         </div>
       )}
+
       {s.low.length > 0 && (
-        <div className="summary-line">
-          <span className="summary-label">Zieht gerade:</span>
-          {s.low.map(x => <span key={x.k} className="sum-chip low">{x.name}</span>)}
+        <div className="summary-block">
+          <div className="summary-block-title">Was gerade schwer ist</div>
+          {s.low.map(x => (
+            <div key={x.k} className="feel-item">
+              <span className="feel-name">{x.name}</span>
+              <span className="feel-text">{x.feel}</span>
+            </div>
+          ))}
         </div>
       )}
+
       {s.loudNote && <p className="muted summary-loud">{s.loudNote}</p>}
+      {s.closeNote && <p className="summary-close">{s.closeNote}</p>}
     </div>
   );
 }
