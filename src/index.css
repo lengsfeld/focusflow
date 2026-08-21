@@ -633,14 +633,14 @@ button.matrix-title:hover{text-decoration:underline}
 .sum-chip{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid}
 .sum-chip.low{color:#fca5a5;border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
 .sum-chip.high{color:#86efac;border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08)}
-.summary-carry{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}
-.summary-block{margin-top:14px}
-.summary-block-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.feel-item{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:11px;background:rgba(248,113,113,.06);border-left:3px solid rgba(248,113,113,.5);margin-top:7px}
-.feel-name{font-weight:800;color:#fca5a5;font-size:13px}
-.feel-text{font-size:13.5px;line-height:1.45;color:#e7e9f2}
-.summary-loud{margin-top:12px}
-.summary-close{margin-top:14px;font-size:12.5px;color:var(--muted);font-style:italic;line-height:1.45}
+/* Muster-Deutung */
+.pattern-block{margin-top:12px}
+.pattern-block + .pattern-block{border-top:1px solid rgba(255,255,255,.07);padding-top:12px}
+.pattern-read{font-size:14.5px;line-height:1.55;margin:0 0 10px;color:#e9ecf5}
+.pattern-tip{display:flex;flex-direction:column;gap:3px;padding:10px 13px;border-radius:12px;background:rgba(34,197,94,.08);border-left:3px solid #22c55e}
+.pattern-tip-title{font-weight:800;font-size:13.5px;color:#86efac}
+.pattern-tip-how{font-size:13.5px;line-height:1.5;color:#dfe3ee}
+.trend-text{font-size:13.5px;line-height:1.5;margin:8px 0 4px;color:#e9ecf5}
 
 /* ===== Check-in Verlauf (beschriftetes Balkendiagramm) ===== */
 .chart{display:flex;gap:8px;margin-top:12px}

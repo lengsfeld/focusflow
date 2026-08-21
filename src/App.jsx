@@ -2304,7 +2304,6 @@ function CheckinView({ api, last, checkins = [] }) {
     const sum = CHECK_SCORED.reduce((a, k) => a + (Number(vals[k]) || 0), 0);
     return Math.round((sum / (CHECK_SCORED.length * 5)) * 100);
   }, [vals]);
-  const adv = useMemo(() => computeAdviceADHD(vals), [vals]);
 
   const save = () => { api.addCheckin({ type: "adhd", ...vals }); setSavedMsg(true); setTimeout(() => setSavedMsg(false), 2500); };
 
@@ -2332,23 +2331,7 @@ function CheckinView({ api, last, checkins = [] }) {
       </div>
 
       {evaluated ? (
-        <>
-          <CheckinSummary vals={vals} score={score} />
-
-          <div className="card">
-            <strong>Empfehlungen</strong>
-            <p className="muted">Zugeschnitten auf deine schwächsten Werte — nach ADHS-Wissensstand.</p>
-            <ul className="list mt8">
-              {adv.map((a, i) => (
-                <li key={i} className="item advice">
-                  <div className="title">💡 {a.title}</div>
-                  <div className="muted mt6">{a.why}</div>
-                  {a.how && <div className="advice-how mt6">→ {a.how}</div>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </>
+        <CheckinSummary vals={vals} score={score} />
       ) : (
         <p className="muted" style={{ textAlign: "center", margin: "4px 0 8px" }}>
           Stell die Regler ein und tippe auf <strong>Auswerten</strong>, um deine Zusammenfassung zu sehen.
@@ -2384,82 +2367,88 @@ function ScaleADHD({ label, value, set, lo, hi, marker }) {
   );
 }
 
-/* ---------- Check-in: lebendige, verständnisvolle Zusammenfassung ---------- */
-const CHECKIN_NAMES = {
-  focus: "Fokus", thoughts: "Gedankenruhe", tension: "Lockerheit", stimuli: "Reizschutz",
-  impulse: "Dranbleiben", social: "Soziale Energie", energy: "Energie", mood: "Stimmung", procrast: "Ins Tun kommen",
-};
-// Wie es sich anfühlt, wenn eine Dimension niedrig ist – normalisierend, ohne Schuld.
-const CHECKIN_FEEL_LOW = {
-  focus:    "Der Fokus rutscht dir weg, der Kopf springt von einem zum nächsten. Das ist kein Unwille – es ist gerade einfach schwer.",
-  thoughts: "Im Kopf sind viele Tabs gleichzeitig offen. Kein Wunder, dass es da drin laut und voll ist.",
-  tension:  "Der Körper ist angespannt – er trägt gerade mehr, als man von außen sieht.",
-  stimuli:  "Reize dringen ungefiltert durch, alles ist gerade ein bisschen zu viel auf einmal.",
-  impulse:  "Beim Thema zu bleiben kostet dich gerade echte Kraft – das ist anstrengend und du machst es trotzdem.",
-  social:   "Die soziale Batterie ist leer. Rückzug ist jetzt keine Schwäche, sondern ein echtes Bedürfnis.",
-  energy:   "Die Energie ist unten, der Tank ist einfach leer. Das darf gerade so sein.",
-  mood:     "Die Stimmung ist gedrückt und die Frustschwelle niedrig – ein schwerer Tag, das ist nachvollziehbar.",
-  procrast: "Der Start fällt schwer. Nicht, weil du nicht willst, sondern weil Anfangen bei ADHS die härteste Hürde überhaupt ist.",
-};
-function checkinSummary(vals, score) {
-  const scored = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood", "procrast"];
-  const arr = scored.map(k => ({ k, v: Number(vals[k]) || 0, name: CHECKIN_NAMES[k], feel: CHECKIN_FEEL_LOW[k] }));
-  const low = arr.filter(x => x.v <= 2.5).sort((a, b) => a.v - b.v).slice(0, 3);
-  const high = arr.filter(x => x.v >= 4).sort((a, b) => b.v - a.v).slice(0, 3);
-  const loud = Number(vals.loud) || 0;
+/* ---------- Check-in: Muster-Deutung (Ableitung statt Wiederholung) ----------
+   Liest KOMBINATIONEN der Werte und deutet, was dahinter steckt.
+   Erste passende Muster gewinnen (max 2), jedes bringt 1 konkreten Tipp mit. */
+const CHECKIN_PATTERNS = [
+  {
+    id: "startblockade",
+    match: v => v.procrast <= 2.5 && v.energy >= 3,
+    read: "Energie wäre eigentlich da – aber der Einstieg klemmt. Das ist die klassische ADHS-Startblockade: Das Problem ist nicht dein Wille, sondern die Schwelle zwischen Wollen und Anfangen.",
+    tip: { t: "Schwelle absenken", h: "Nimm die kleinste Aufgabe, stell 2 Minuten Timer, starte im 🎯 Jetzt-Modus. Nicht die Aufgabe schaffen – nur die Schwelle knacken. Der Rest kommt oft von allein." },
+  },
+  {
+    id: "ueberreizt",
+    match: v => v.stimuli <= 2.5 && (v.thoughts <= 3 || v.loud >= 4),
+    read: "Dein Filter ist gerade durchlässig: Es kommt mehr Input rein, als dein Kopf sortieren kann. Die Gedankenflut ist dabei eher Folge als Ursache – dein System ist schlicht überreizt.",
+    tip: { t: "Input drosseln, dann leeren", h: "Erst physisch Reize weg (Kopfhörer, Handy in anderen Raum, ein Fenster offen). Dann 2 Minuten alles in die 💭 Auffangbox kippen – erst leer schreiben, dann arbeiten." },
+  },
+  {
+    id: "erschoepft",
+    match: v => v.energy <= 2.5 && (v.mood <= 3 || v.tension <= 3),
+    read: "Der Tank ist leer, und das drückt auf Stimmung und Körper. Das ist Erschöpfung – kein Motivationsproblem. Dein System fordert gerade Erholung ein, nicht mehr Disziplin.",
+    tip: { t: "Erst auffüllen, dann leisten", h: "10 Minuten ganz ohne Anforderung: Wasser, etwas essen, kurz raus. Danach höchstens EINE kleine Aufgabe – heute zählt Erhalt, nicht Output." },
+  },
+  {
+    id: "hochgefahren",
+    match: v => v.loud >= 4 && v.tension <= 2.5,
+    read: "Du bist innerlich hochgefahren – viel Aktivierung, aber der Körper hält die Spannung fest. Gegen diesen Zustand anzudenken funktioniert selten; er will erst raus, dann runter.",
+    tip: { t: "Erst raus, dann runter", h: "5 Minuten zügige Bewegung (Treppe, schnelles Gehen), direkt danach die Atemübung Physio-Seufzer. Die Reihenfolge ist der Trick: Energie abbauen, dann beruhigen." },
+  },
+  {
+    id: "zersplittert",
+    match: v => v.focus <= 2.5 && v.impulse <= 2.5,
+    read: "Deine Aufmerksamkeit ist gerade zersplittert – sie springt, weil alles gleich laut ruft. Das ist keine Undiszipliniertheit, sondern ein Priorisierungsstau im Kopf.",
+    tip: { t: "Künstlich EINE Sache laut machen", h: "Wähl irgendeine Aufgabe (welche ist fast egal) und öffne den 🎯 Jetzt-Modus. Der Vollbildmodus übernimmt das Priorisieren, das dein Kopf gerade nicht leisten kann." },
+  },
+  {
+    id: "sozial-leer",
+    match: v => v.social <= 2.5 && v.energy >= 3,
+    read: "Deine Energie ist okay, aber die soziale Batterie ist leer – Menschen kosten dich heute mehr als sonst. Das ist ein echtes Bedürfnis nach Rückzug, keine Unfreundlichkeit.",
+    tip: { t: "Rückzug einplanen statt erdulden", h: "Blockiere bewusst 30 Minuten ohne Menschen und Nachrichten. Geplanter Rückzug lädt – erzwungenes Durchhalten entlädt weiter." },
+  },
+  {
+    id: "gedrückt",
+    match: v => v.mood <= 2.5 && v.energy >= 3,
+    read: "Die Stimmung ist gedrückt, obwohl Energie da ist – oft ein Zeichen, dass Frust sich angestaut hat oder ein Erfolgserlebnis fehlt, nicht dass der Tag verloren ist.",
+    tip: { t: "Ein schneller Beweis", h: "Erledige eine Mini-Aufgabe (2–5 Min) und hak sie sichtbar ab. Ein einziger kleiner Erfolg verschiebt die Stimmung mehr als eine Stunde Grübeln." },
+  },
+];
+function analyzeCheckin(vals, score) {
+  const v = Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Number(x) || 0]));
   const band = scoreBand(score);
+  const patterns = CHECKIN_PATTERNS.filter(p => p.match(v)).slice(0, 2);
 
   let headline;
-  if (band.label === "gut") headline = low.length
-    ? "Dir geht's im Großen und Ganzen gut gerade – ein paar Ecken zwicken, aber das meiste trägt dich."
-    : "Dir geht's gerade richtig gut – schön, das mal schwarz auf weiß zu sehen.";
-  else if (band.label === "solide") headline = "Du bist ganz gut beisammen. Ein paar Dinge kosten Kraft, der Rest hält dich.";
-  else if (band.label === "angespannt") headline = "Es ist gerade anstrengend für dich – und bei dem, was du eingegeben hast, ergibt das total Sinn.";
-  else headline = "Gerade liegt richtig viel auf dir. Dass sich das zäh und schwer anfühlt, ist absolut nachvollziehbar.";
+  if (patterns.length) headline = null; // Muster sprechen für sich
+  else if (band.label === "gut") headline = "Deine Werte tragen sich gegenseitig – nichts zieht dich gerade ernsthaft runter. Nutz den Rückenwind für das, was dir wichtig ist.";
+  else if (band.label === "solide") headline = "Kein einzelner Bereich sticht negativ heraus – es ist eher ein allgemeines Mittelmaß. Ein guter Tag für Routine statt Großprojekte.";
+  else headline = "Vieles ist gleichzeitig ein bisschen zäh, ohne dass ein einzelner Auslöser heraussticht. Solche Tage sind diffus – mach sie klein: eine Sache, eine Pause, fertig.";
 
-  let loudNote = null;
-  if (loud >= 4) loudNote = "🔊 Innerlich bist du gerade ziemlich aufgedreht – erst Bewegung, dann bewusst runterregulieren nimmt den Druck.";
-  else if (loud <= 2) loudNote = "🔈 Innerlich ist es heute eher leise und ruhig.";
-
-  const closeNote = (band.label === "angespannt" || band.label === "hoch belastet")
-    ? "Das ist eine Momentaufnahme von heute – kein Urteil über dich. Ein einziger kleiner Schritt reicht völlig."
-    : null;
-
-  return { band, low, high, loudNote, headline, closeNote };
+  return { band, patterns, headline };
 }
 
 function CheckinSummary({ vals, score }) {
-  const s = checkinSummary(vals, score);
+  const s = analyzeCheckin(vals, score);
   const bandCls = s.band.label.toLowerCase().replace(/\s+/g, '-');
   return (
     <div className={`card summary-card band-edge-${bandCls}`}>
       <div className="row between">
-        <strong>So geht's dir gerade</strong>
+        <strong>Was deine Werte sagen</strong>
         <span className={`badge metric band-${bandCls}`}>Score {score}/100</span>
       </div>
-      <p className="summary-headline">{s.headline}</p>
 
-      {s.high.length > 0 && (
-        <div className="summary-carry">
-          <span className="summary-label">Was dich trägt: </span>
-          {s.high.map(x => <span key={x.k} className="sum-chip high">{x.name}</span>)}
+      {s.headline && <p className="summary-headline">{s.headline}</p>}
+
+      {s.patterns.map(p => (
+        <div key={p.id} className="pattern-block">
+          <p className="pattern-read">{p.read}</p>
+          <div className="pattern-tip">
+            <span className="pattern-tip-title">→ {p.tip.t}</span>
+            <span className="pattern-tip-how">{p.tip.h}</span>
+          </div>
         </div>
-      )}
-
-      {s.low.length > 0 && (
-        <div className="summary-block">
-          <div className="summary-block-title">Was gerade schwer ist</div>
-          {s.low.map(x => (
-            <div key={x.k} className="feel-item">
-              <span className="feel-name">{x.name}</span>
-              <span className="feel-text">{x.feel}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {s.loudNote && <p className="muted summary-loud">{s.loudNote}</p>}
-      {s.closeNote && <p className="summary-close">{s.closeNote}</p>}
+      ))}
     </div>
   );
 }
@@ -2485,12 +2474,35 @@ function CheckinHistory({ checkins = [] }) {
   const trend = scores.length >= 2 ? scores[scores.length - 1] - scores[0] : 0;
   const fmtD = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" });
 
+  // Tendenz in Worten: jüngere Hälfte vs. ältere Hälfte + Schwankung + heute vs. Schnitt
+  const trendText = (() => {
+    if (scores.length < 3) return "Noch zu wenige Einträge für eine Tendenz – bleib dran, ab drei Check-ins wird's aussagekräftig.";
+    const mid = Math.floor(scores.length / 2);
+    const avgOld = scores.slice(0, mid).reduce((a, b) => a + b, 0) / mid;
+    const avgNew = scores.slice(mid).reduce((a, b) => a + b, 0) / (scores.length - mid);
+    const diff = Math.round(avgNew - avgOld);
+    const spread = Math.max(...scores) - Math.min(...scores);
+    const lastVal = scores[scores.length - 1];
+
+    let dir;
+    if (diff >= 8) dir = `Es geht spürbar aufwärts – die jüngeren Check-ins liegen im Schnitt ${diff} Punkte über den älteren.`;
+    else if (diff >= 3) dir = "Leichte Tendenz nach oben – kein Sprung, aber die Richtung stimmt.";
+    else if (diff <= -8) dir = `Die letzte Zeit war schwerer – im Schnitt ${Math.abs(diff)} Punkte unter davor. Das darf so sein, und es erklärt vielleicht, warum sich gerade vieles zäh anfühlt.`;
+    else if (diff <= -3) dir = "Leichte Tendenz nach unten – noch kein Grund zur Sorge, aber ein Blick wert.";
+    else dir = "Ziemlich stabil – keine große Bewegung nach oben oder unten.";
+
+    const vola = spread >= 35 ? " Deine Tage schwanken dabei deutlich – gute und schwere wechseln sich ab, das ist bei ADHS ein normales Muster." : "";
+    const today = lastVal - avg >= 10 ? " Der letzte Check-in lag klar über deinem Schnitt." : lastVal - avg <= -10 ? " Der letzte Check-in lag unter deinem Schnitt – sei heute etwas nachsichtiger mit dir." : "";
+    return dir + vola + today;
+  })();
+
   return (
     <div className="card">
       <div className="row between">
         <strong>Check-in-Verlauf</strong>
         <span className="muted">Ø {avg}/100</span>
       </div>
+      <p className="trend-text">{trendText}</p>
       <p className="muted">Gesamt-Score je Check-in (0–100, höher = besser). Letzte {last.length} Einträge.</p>
 
       <div className="chart">
