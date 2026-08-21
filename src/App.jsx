@@ -2297,15 +2297,25 @@ const CHECK_SCORED = CHECK_QUESTIONS.map(q => q.k);
 function CheckinView({ api, last, checkins = [] }) {
   const [vals, setVals] = useState({ focus: 3, thoughts: 3, tension: 3, stimuli: 3, impulse: 3, social: 3, energy: 3, mood: 3, procrast: 3, loud: 3 });
   const [evaluated, setEvaluated] = useState(false);
-  const setVal = (k, v) => { setVals(s => ({ ...s, [k]: +v })); setEvaluated(false); };
-  const [savedMsg, setSavedMsg] = useState(false);
+  const [closed, setClosed] = useState(false);
+  const setVal = (k, v) => { setVals(s => ({ ...s, [k]: +v })); setEvaluated(false); setClosed(false); };
 
   const score = useMemo(() => {
     const sum = CHECK_SCORED.reduce((a, k) => a + (Number(vals[k]) || 0), 0);
     return Math.round((sum / (CHECK_SCORED.length * 5)) * 100);
   }, [vals]);
 
-  const save = () => { api.addCheckin({ type: "adhd", ...vals }); setSavedMsg(true); setTimeout(() => setSavedMsg(false), 2500); };
+  const finish = () => { api.addCheckin({ type: "adhd", ...vals }); setClosed(true); };
+
+  // Realitätsanker für den Abschluss: was steht heute noch an?
+  const openToday = (api.state.planner.today || []).filter(t => !t.isBreak && !t.done).length;
+  const band = scoreBand(score);
+  const closingGround = (() => {
+    const heavy = band.label === "angespannt" || band.label === "hoch belastet";
+    if (openToday === 0) return "Dein Tagesplan ist leer – vielleicht ist genau das heute richtig so.";
+    if (heavy) return `Im Plan stehen noch ${openToday} Aufgabe${openToday > 1 ? "n" : ""} – bei deinem heutigen Zustand wäre EINE davon schon ein voller Erfolg. Mehr muss nicht.`;
+    return `Im Plan warten noch ${openToday} Aufgabe${openToday > 1 ? "n" : ""} – ein guter Moment, die nächste direkt anzugehen.`;
+  })();
 
   return (
     <>
@@ -2322,16 +2332,26 @@ function CheckinView({ api, last, checkins = [] }) {
 
         <div className="row between mt8">
           <strong>Score: {score}/100</strong>
-          <div className="row gap">
-            <button className="btn btn-primary" onClick={() => setEvaluated(true)}>🔎 Auswerten</button>
-            <button className="btn" onClick={save}>Speichern</button>
-          </div>
+          <button className="btn btn-primary" onClick={() => setEvaluated(true)}>🔎 Auswerten</button>
         </div>
-        {savedMsg && <p className="muted mt6">✓ Gespeichert.</p>}
       </div>
 
       {evaluated ? (
-        <CheckinSummary vals={vals} score={score} />
+        <>
+          <CheckinSummary vals={vals} score={score} checkins={checkins} api={api} />
+          {!closed ? (
+            <div className="card closing-cta">
+              <p className="muted">Wenn sich das stimmig anfühlt, schließ den Check-in ab – er wandert in deinen Verlauf.</p>
+              <button className="btn btn-primary" onClick={finish}>✓ Check-in abschließen</button>
+            </div>
+          ) : (
+            <div className="card closure-card">
+              <div className="closure-check">✓</div>
+              <strong>Eingecheckt.</strong>
+              <p className="closure-text">Du hast heute auf dich geschaut – das ist der Teil, den die meisten auslassen. {closingGround}</p>
+            </div>
+          )}
+        </>
       ) : (
         <p className="muted" style={{ textAlign: "center", margin: "4px 0 8px" }}>
           Stell die Regler ein und tippe auf <strong>Auswerten</strong>, um deine Zusammenfassung zu sehen.
@@ -2375,31 +2395,36 @@ const CHECKIN_PATTERNS = [
     id: "startblockade",
     match: v => v.procrast <= 2.5 && v.energy >= 3,
     read: "Energie wäre eigentlich da – aber der Einstieg klemmt. Das ist die klassische ADHS-Startblockade: Das Problem ist nicht dein Wille, sondern die Schwelle zwischen Wollen und Anfangen.",
-    tip: { t: "Schwelle absenken", h: "Nimm die kleinste Aufgabe, stell 2 Minuten Timer, starte im 🎯 Jetzt-Modus. Nicht die Aufgabe schaffen – nur die Schwelle knacken. Der Rest kommt oft von allein." },
+    tip: { t: "Schwelle absenken", h: "Nimm die kleinste Aufgabe, stell 2 Minuten Timer, starte im Jetzt-Modus. Nicht die Aufgabe schaffen – nur die Schwelle knacken. Der Rest kommt oft von allein." },
+    action: { label: "🎯 Jetzt-Modus starten", act: "focus-first" },
   },
   {
     id: "ueberreizt",
     match: v => v.stimuli <= 2.5 && (v.thoughts <= 3 || v.loud >= 4),
     read: "Dein Filter ist gerade durchlässig: Es kommt mehr Input rein, als dein Kopf sortieren kann. Die Gedankenflut ist dabei eher Folge als Ursache – dein System ist schlicht überreizt.",
-    tip: { t: "Input drosseln, dann leeren", h: "Erst physisch Reize weg (Kopfhörer, Handy in anderen Raum, ein Fenster offen). Dann 2 Minuten alles in die 💭 Auffangbox kippen – erst leer schreiben, dann arbeiten." },
+    tip: { t: "Input drosseln, dann leeren", h: "Erst physisch Reize weg (Kopfhörer, Handy in anderen Raum, ein Fenster offen). Dann 2 Minuten alles in die Auffangbox kippen – erst leer schreiben, dann arbeiten." },
+    action: { label: "💭 Auffangbox öffnen", act: "planner" },
   },
   {
     id: "erschoepft",
     match: v => v.energy <= 2.5 && (v.mood <= 3 || v.tension <= 3),
     read: "Der Tank ist leer, und das drückt auf Stimmung und Körper. Das ist Erschöpfung – kein Motivationsproblem. Dein System fordert gerade Erholung ein, nicht mehr Disziplin.",
     tip: { t: "Erst auffüllen, dann leisten", h: "10 Minuten ganz ohne Anforderung: Wasser, etwas essen, kurz raus. Danach höchstens EINE kleine Aufgabe – heute zählt Erhalt, nicht Output." },
+    action: { label: "🌿 Übungen öffnen", act: "stress" },
   },
   {
     id: "hochgefahren",
     match: v => v.loud >= 4 && v.tension <= 2.5,
     read: "Du bist innerlich hochgefahren – viel Aktivierung, aber der Körper hält die Spannung fest. Gegen diesen Zustand anzudenken funktioniert selten; er will erst raus, dann runter.",
     tip: { t: "Erst raus, dann runter", h: "5 Minuten zügige Bewegung (Treppe, schnelles Gehen), direkt danach die Atemübung Physio-Seufzer. Die Reihenfolge ist der Trick: Energie abbauen, dann beruhigen." },
+    action: { label: "🌬 Physio-Seufzer öffnen", act: "stress" },
   },
   {
     id: "zersplittert",
     match: v => v.focus <= 2.5 && v.impulse <= 2.5,
     read: "Deine Aufmerksamkeit ist gerade zersplittert – sie springt, weil alles gleich laut ruft. Das ist keine Undiszipliniertheit, sondern ein Priorisierungsstau im Kopf.",
-    tip: { t: "Künstlich EINE Sache laut machen", h: "Wähl irgendeine Aufgabe (welche ist fast egal) und öffne den 🎯 Jetzt-Modus. Der Vollbildmodus übernimmt das Priorisieren, das dein Kopf gerade nicht leisten kann." },
+    tip: { t: "Künstlich EINE Sache laut machen", h: "Wähl irgendeine Aufgabe (welche ist fast egal) und öffne den Jetzt-Modus. Der Vollbildmodus übernimmt das Priorisieren, das dein Kopf gerade nicht leisten kann." },
+    action: { label: "🎯 Jetzt-Modus starten", act: "focus-first" },
   },
   {
     id: "sozial-leer",
@@ -2412,6 +2437,7 @@ const CHECKIN_PATTERNS = [
     match: v => v.mood <= 2.5 && v.energy >= 3,
     read: "Die Stimmung ist gedrückt, obwohl Energie da ist – oft ein Zeichen, dass Frust sich angestaut hat oder ein Erfolgserlebnis fehlt, nicht dass der Tag verloren ist.",
     tip: { t: "Ein schneller Beweis", h: "Erledige eine Mini-Aufgabe (2–5 Min) und hak sie sichtbar ab. Ein einziger kleiner Erfolg verschiebt die Stimmung mehr als eine Stunde Grübeln." },
+    action: { label: "🎯 Kleinste Aufgabe starten", act: "focus-first" },
   },
 ];
 function analyzeCheckin(vals, score) {
@@ -2419,26 +2445,70 @@ function analyzeCheckin(vals, score) {
   const band = scoreBand(score);
   const patterns = CHECKIN_PATTERNS.filter(p => p.match(v)).slice(0, 2);
 
-  let headline;
-  if (patterns.length) headline = null; // Muster sprechen für sich
-  else if (band.label === "gut") headline = "Deine Werte tragen sich gegenseitig – nichts zieht dich gerade ernsthaft runter. Nutz den Rückenwind für das, was dir wichtig ist.";
-  else if (band.label === "solide") headline = "Kein einzelner Bereich sticht negativ heraus – es ist eher ein allgemeines Mittelmaß. Ein guter Tag für Routine statt Großprojekte.";
-  else headline = "Vieles ist gleichzeitig ein bisschen zäh, ohne dass ein einzelner Auslöser heraussticht. Solche Tage sind diffus – mach sie klein: eine Sache, eine Pause, fertig.";
+  let fallback = null;
+  if (!patterns.length) {
+    if (band.label === "gut") fallback = "Deine Werte tragen sich gegenseitig – nichts zieht dich gerade ernsthaft runter. Nutz den Rückenwind für das, was dir wichtig ist.";
+    else if (band.label === "solide") fallback = "Kein einzelner Bereich sticht negativ heraus – es ist eher ein allgemeines Mittelmaß. Ein guter Tag für Routine statt Großprojekte.";
+    else fallback = "Vieles ist gleichzeitig ein bisschen zäh, ohne dass ein einzelner Auslöser heraussticht. Solche Tage sind diffus – mach sie klein: eine Sache, eine Pause, fertig.";
+  }
 
-  return { band, patterns, headline };
+  return { band, patterns, fallback };
 }
 
-function CheckinSummary({ vals, score }) {
+// Warme Ansprache je nach Zustand
+function warmGreeting(band, nickname) {
+  const name = (nickname || "").trim();
+  const hey = name ? `${name}, ` : "";
+  switch (band.label) {
+    case "gut": return `${hey}dir geht's gerade gut – nimm das ruhig einen Moment bewusst wahr, bevor du weitermachst.`;
+    case "solide": return `${hey}du bist heute stabil unterwegs. Nicht alles ist leicht, aber du trägst es.`;
+    case "angespannt": return `${hey}heute zieht es spürbar an dir. Dass du dir trotzdem diese Minute für dich nimmst, spricht für dich.`;
+    default: return `${hey}gerade ist richtig viel. Dass du in so einem Moment kurz bei dir eincheckst, ist genau der richtige Schritt – vielleicht der wichtigste heute.`;
+  }
+}
+
+// Vergleich mit dem persönlichen Schnitt (die "Agenda")
+function baselineText(score, checkins) {
+  const prior = (checkins || []).filter(c => c.answers?.type === "adhd").map(c => Number(c.score) || 0);
+  if (prior.length < 3) return null;
+  const avg = Math.round(prior.reduce((a, b) => a + b, 0) / prior.length);
+  const d = score - avg;
+  if (d >= 10) return `Für deine Verhältnisse ist das ein richtig guter Moment: Du liegst deutlich über deinem üblichen Schnitt (Ø ${avg}).`;
+  if (d >= 4)  return `Das liegt leicht über deinem üblichen Schnitt (Ø ${avg}) – ein besserer Tag als sonst.`;
+  if (d <= -10) return `Gemessen an deinem Schnitt (Ø ${avg}) ist heute ein schwerer Tag. Nicht, weil du etwas falsch machst – Tage wiegen unterschiedlich. Sei entsprechend nachsichtig mit dir.`;
+  if (d <= -4)  return `Das liegt etwas unter deinem üblichen Schnitt (Ø ${avg}) – ein zäherer Tag als sonst.`;
+  return `Das entspricht ziemlich genau deinem üblichen Schnitt (Ø ${avg}) – ein typischer Tag für dich.`;
+}
+
+function CheckinSummary({ vals, score, checkins, api }) {
   const s = analyzeCheckin(vals, score);
   const bandCls = s.band.label.toLowerCase().replace(/\s+/g, '-');
+  const greeting = warmGreeting(s.band, api?.state?.profile?.nickname);
+  const baseline = baselineText(score, checkins);
+
+  const runAction = (act) => {
+    if (!api) return;
+    if (act === "focus-first") {
+      const openTasks = (api.state.planner.today || []).filter(t => !t.isBreak && !t.done);
+      const smallest = [...openTasks].sort((a, b) => (a.durationMin || 999) - (b.durationMin || 999))[0];
+      if (smallest) api.setFocus(smallest.id);
+      else api.setRoute("planner");
+    } else {
+      api.setRoute(act);
+    }
+  };
+
   return (
     <div className={`card summary-card band-edge-${bandCls}`}>
       <div className="row between">
-        <strong>Was deine Werte sagen</strong>
+        <strong>So geht's dir gerade</strong>
         <span className={`badge metric band-${bandCls}`}>Score {score}/100</span>
       </div>
 
-      {s.headline && <p className="summary-headline">{s.headline}</p>}
+      <p className="summary-headline">{greeting}</p>
+      {baseline && <p className="baseline-text">{baseline}</p>}
+
+      {s.fallback && <p className="pattern-read mt8">{s.fallback}</p>}
 
       {s.patterns.map(p => (
         <div key={p.id} className="pattern-block">
@@ -2446,6 +2516,11 @@ function CheckinSummary({ vals, score }) {
           <div className="pattern-tip">
             <span className="pattern-tip-title">→ {p.tip.t}</span>
             <span className="pattern-tip-how">{p.tip.h}</span>
+            {p.action && (
+              <button className="btn btn-primary pattern-action" type="button" onClick={() => runAction(p.action.act)}>
+                {p.action.label}
+              </button>
+            )}
           </div>
         </div>
       ))}
