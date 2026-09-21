@@ -549,6 +549,24 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .purchase-note{font-size:13px;line-height:1.45;color:#dfe3ee;margin:6px 0 8px}
 .purchase-wait{font-size:13px;color:#fcd34d;margin-bottom:8px;font-variant-numeric:tabular-nums}
 .purchase-ready{font-size:13px;font-weight:700;color:#86efac;margin-bottom:8px}
+
+/* Gefühlslage */
+.mood-row{display:flex;flex-wrap:wrap;gap:7px}
+.mood-btn{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:8px 12px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);cursor:pointer;font-weight:700;font-size:13px;flex:1 1 140px}
+.mood-btn span{font-weight:400;font-size:11px;color:var(--muted);line-height:1.3}
+.mood-btn:hover{filter:brightness(1.1)}
+.mood-btn.active{border-color:#a855f7;box-shadow:inset 0 0 0 2px #a855f7;background:rgba(168,85,247,.12)}
+
+/* Wartezeit-Rechnung */
+.wait-calc{padding:12px 14px;border-radius:12px;background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.32)}
+.wc-head{display:flex;align-items:baseline;gap:8px}
+.wc-days{font-size:24px;font-weight:900;color:#fcd34d;font-variant-numeric:tabular-nums}
+.wc-label{font-size:12px;color:var(--muted)}
+.wc-steps{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.wc-steps li{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:#dfe3ee;border-top:1px dashed rgba(255,255,255,.09);padding-top:4px}
+.wc-steps li:first-child{border-top:0;padding-top:0}
+.wc-steps strong{font-variant-numeric:tabular-nums;color:#fcd34d}
+.wc-cap{margin-top:8px;font-size:11.5px;color:var(--muted)}
 .btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
 @media(max-width:480px){ .mc-row{grid-template-columns:1fr} }
 

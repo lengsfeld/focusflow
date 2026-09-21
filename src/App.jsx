@@ -553,13 +553,15 @@ const autoPlanToday = (overrideMinutes) => {
   const touchStressNudge = () => setState(s => ({ ...s, nudges: { ...s.nudges, lastStressISO: new Date().toISOString() } }));
 
   /* ---------- Anschaffungen (Impulskauf-Bremse) ---------- */
-  const purchaseAdd = ({ title, price, uses, need, often }) => {
+  const purchaseAdd = ({ title, price, uses, need, often, mood, waitDays }) => {
     const t = (title || "").trim(); if (!t) return;
     const entry = {
       id: uid(), title: t,
       price: Number.isFinite(+price) && +price > 0 ? +price : null,
       uses: Number.isFinite(+uses) && +uses > 0 ? +uses : null,
       need: !!need, often: !!often,
+      mood: mood || null,
+      waitDays: Number(waitDays) > 0 ? Number(waitDays) : 3,
       parkedAt: Date.now(),
     };
     setState(s => ({ ...s, purchases: [entry, ...(s.purchases || [])] }));
@@ -987,13 +989,13 @@ const sortedToday = useMemo(() => {
       </div>
 
       {(() => {
-        const ready = (state.purchases || []).filter(p => (p.parkedAt + PARK_MS) <= Date.now());
+        const ready = (state.purchases || []).filter(purchaseReady);
         if (!ready.length) return null;
         return (
           <div className="card">
             <strong>Anschaffung entscheiden</strong>
             <p className="muted">
-              Bei {ready.length === 1 ? <>„{ready[0].title}"</> : `${ready.length} Anschaffungen`} ist die 72-h-Wartezeit vorbei. Willst du es immer noch?
+              Bei {ready.length === 1 ? <>„{ready[0].title}"</> : `${ready.length} Anschaffungen`} ist die Wartezeit vorbei. Willst du es immer noch?
             </p>
             <button className="btn" onClick={() => go("buy")}>Ansehen</button>
           </div>
@@ -2221,7 +2223,44 @@ function WeekCalendarView({ state, api }) {
 /* =========================================================
    Anschaffungs-Matrix – Impulskauf-Bremse mit 72h-Parkplatz
    ========================================================= */
-const PARK_MS = 72 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Gefühlslage beim Kaufimpuls – der stärkste Indikator für Impulsivität
+const BUY_MOODS = [
+  { key: "calm",     label: "Ruhig & klar",       hint: "ausgeglichen, nüchtern",        add: 0 },
+  { key: "bored",    label: "Gelangweilt",        hint: "Reizsuche, Unterforderung",     add: 2 },
+  { key: "stressed", label: "Gestresst",          hint: "überfordert, unter Druck",      add: 2 },
+  { key: "down",     label: "Frustriert/gedrückt", hint: "Trost- oder Ausgleichskauf",   add: 3 },
+  { key: "wired",    label: "Aufgedreht",         hint: "euphorisch, hochgefahren",      add: 3 },
+];
+const moodOf = (key) => BUY_MOODS.find(m => m.key === key) || null;
+
+// Wartezeit-Formel: Basis (Matrix) + Gefühl + Preis + Preis pro Nutzung
+function computeWait({ need, often, mood, price, uses }) {
+  const steps = [];
+  let days = need && often ? 1 : need && !often ? 2 : !need && often ? 3 : 5;
+  steps.push({ t: need && often ? "Bedarf + oft genutzt" : need ? "Bedarf, aber selten" : often ? "Wunsch, oft genutzt" : "Wunsch, selten genutzt", d: days });
+
+  const m = moodOf(mood);
+  if (m && m.add > 0) { days += m.add; steps.push({ t: `Stimmung: ${m.label}`, d: m.add }); }
+
+  const p = Number(price) || 0;
+  if (p >= 500) { days += 3; steps.push({ t: "Preis ab 500 €", d: 3 }); }
+  else if (p >= 200) { days += 2; steps.push({ t: "Preis ab 200 €", d: 2 }); }
+  else if (p >= 50) { days += 1; steps.push({ t: "Preis ab 50 €", d: 1 }); }
+
+  const perUse = (p && Number(uses) > 0) ? p / Number(uses) : null;
+  if (perUse !== null) {
+    if (perUse > 25) { days += 2; steps.push({ t: "über 25 € pro Nutzung", d: 2 }); }
+    else if (perUse > 10) { days += 1; steps.push({ t: "über 10 € pro Nutzung", d: 1 }); }
+  }
+
+  const total = Math.max(1, Math.min(14, days));
+  return { days: total, steps, capped: days > 14 };
+}
+
+const waitMsOf = (p) => (Number(p.waitDays) || 3) * DAY_MS;
+const purchaseReady = (p) => (p.parkedAt + waitMsOf(p)) <= Date.now();
 
 function purchaseVerdict(need, often) {
   if (need && often) return { key: "kaufen", label: "Kaufen", cls: "v-buy", note: "Echter Bedarf, häufige Nutzung – Preise vergleichen, dann ist es in Ordnung." };
@@ -2247,16 +2286,18 @@ function PurchaseView({ state, api }) {
   const [uses, setUses] = useState("");
   const [need, setNeed] = useState(null);
   const [often, setOften] = useState(null);
+  const [mood, setMood] = useState(null);
   useNow(true);
 
-  const canAdd = title.trim() && need !== null && often !== null;
+  const canAdd = title.trim() && need !== null && often !== null && mood !== null;
   const preview = (need !== null && often !== null) ? purchaseVerdict(need, often) : null;
   const perUse = (price && uses && +uses > 0) ? (+price / +uses) : null;
+  const wait = canAdd ? computeWait({ need, often, mood, price, uses }) : null;
 
   const add = () => {
     if (!canAdd) return;
-    api.purchaseAdd({ title, price, uses, need, often });
-    setTitle(""); setPrice(""); setUses(""); setNeed(null); setOften(null);
+    api.purchaseAdd({ title, price, uses, need, often, mood, waitDays: wait.days });
+    setTitle(""); setPrice(""); setUses(""); setNeed(null); setOften(null); setMood(null);
   };
 
   const list = state.purchases || [];
@@ -2264,14 +2305,14 @@ function PurchaseView({ state, api }) {
   return (
     <>
       <h2 className="h1">Anschaffungen</h2>
-      <p className="muted">Kurz prüfen statt sofort kaufen. Alles landet 72 Stunden auf dem Parkplatz – der Impuls verfällt, der echte Bedarf bleibt.</p>
+      <p className="muted">Kurz prüfen statt sofort kaufen. Die Wartezeit wird berechnet – je impulsiver die Lage, desto länger. Der Impuls verfällt, der echte Bedarf bleibt.</p>
 
       <div className="card">
         <strong>Vorab-Check</strong>
         <ul className="precheck">
           <li>Kenne ich das Ding seit <strong>20 Minuten</strong> oder länger als eine Woche?</li>
-          <li>Wie geht's mir gerade – gelangweilt, gestresst, aufgedreht? Dann reguliert der Kauf ein <strong>Gefühl</strong>, keinen Bedarf.</li>
           <li>Habe ich schon etwas, das den Job erledigt – auch wenn es schlechter ist?</li>
+          <li>Ist das Geld für etwas anderes eingeplant?</li>
         </ul>
       </div>
 
@@ -2315,6 +2356,17 @@ function PurchaseView({ state, api }) {
             </div>
           </div>
 
+          <div className="matrix-choice">
+            <div className="mc-label">Wie geht's dir gerade – in diesem Moment?</div>
+            <div className="mood-row">
+              {BUY_MOODS.map(m => (
+                <button key={m.key} type="button" className={`mood-btn ${mood === m.key ? "active" : ""}`} onClick={() => setMood(m.key)}>
+                  {m.label}<span>{m.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {preview && (
             <div className={`verdict-preview ${preview.cls}`}>
               <span className="vp-label">{preview.label}</span>
@@ -2322,8 +2374,23 @@ function PurchaseView({ state, api }) {
             </div>
           )}
 
+          {wait && (
+            <div className="wait-calc">
+              <div className="wc-head">
+                <span className="wc-days">{wait.days} Tag{wait.days > 1 ? "e" : ""}</span>
+                <span className="wc-label">berechnete Wartezeit</span>
+              </div>
+              <ul className="wc-steps">
+                {wait.steps.map((st, i) => (
+                  <li key={i}><span>{st.t}</span><strong>{i === 0 ? `${st.d}` : `+${st.d}`}</strong></li>
+                ))}
+              </ul>
+              {wait.capped && <div className="wc-cap">gedeckelt auf 14 Tage</div>}
+            </div>
+          )}
+
           <button className="btn btn-primary" onClick={add} type="button" disabled={!canAdd}>
-            ⏳ Auf den Parkplatz (72 h)
+            {wait ? `⏳ Auf den Parkplatz (${wait.days} Tag${wait.days > 1 ? "e" : ""})` : "⏳ Auf den Parkplatz"}
           </button>
         </div>
       </div>
@@ -2334,27 +2401,27 @@ function PurchaseView({ state, api }) {
         <ul className="list mt8">
           {list.map(p => {
             const v = purchaseVerdict(p.need, p.often);
-            const remain = fmtRemain((p.parkedAt + PARK_MS) - Date.now());
+            const remain = fmtRemain((p.parkedAt + waitMsOf(p)) - Date.now());
             const pu = (p.price && p.uses) ? (p.price / p.uses) : null;
+            const m = moodOf(p.mood);
             return (
               <li key={p.id} className={`item purchase-item ${remain ? "" : "is-ready"}`}>
                 <div className="row top">
                   <span className="purchase-title">{p.title}</span>
                   <span className={`verdict ${v.cls}`}>{v.label}</span>
                 </div>
-                {(p.price || pu) && (
-                  <div className="purchase-meta">
-                    {p.price ? `${p.price} €` : ""}
-                    {pu ? ` · ${pu.toFixed(2)} € pro Nutzung` : ""}
-                  </div>
-                )}
+                <div className="purchase-meta">
+                  {p.price ? `${p.price} €` : ""}
+                  {pu ? ` · ${pu.toFixed(2)} € pro Nutzung` : ""}
+                  {m ? `${(p.price || pu) ? " · " : ""}Stimmung beim Impuls: ${m.label}` : ""}
+                </div>
                 <div className="purchase-note">{v.note}</div>
                 {remain
-                  ? <div className="purchase-wait">⏳ Noch <strong>{remain}</strong> Wartezeit</div>
+                  ? <div className="purchase-wait">⏳ Noch <strong>{remain}</strong> von {p.waitDays || 3} Tag{(p.waitDays || 3) > 1 ? "en" : ""}</div>
                   : <div className="purchase-ready">✓ Wartezeit vorbei – willst du es immer noch?</div>}
                 <div className="task-opts">
                   <button className="btn opt" type="button" onClick={() => api.purchaseRemove(p.id)}>Gekauft</button>
-                  <button className="btn opt" type="button" onClick={() => api.purchaseExtend(p.id)}>+72 h</button>
+                  <button className="btn opt" type="button" onClick={() => api.purchaseExtend(p.id)}>↻ Wartezeit neu</button>
                   <button className="btn opt danger" type="button" onClick={() => api.purchaseRemove(p.id)}>🗑 Doch nicht</button>
                 </div>
               </li>
