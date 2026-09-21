@@ -39,6 +39,7 @@ const INITIAL = {
   inbox: [],
   journal: [],
   checkins: [],
+  purchases: [],   // Anschaffungs-Parkplatz (Impulskauf-Bremse)
   nudges: { lastStressISO: null },
   timers: { activeId: null, startedAt: null }, // laufender Aufgaben-Timer
   settings: {
@@ -117,6 +118,7 @@ function label(route) {
     case "journal": return "Journal";
     case "checkin": return "Check-in";
     case "review": return "Tagesrückblick";
+    case "buy": return "Anschaffungen";
     case "matrix": return "Matrix";
     case "calendar": return "Kalender";
     default: return String(route || "").trim() || "Unbenannt";
@@ -550,6 +552,24 @@ const autoPlanToday = (overrideMinutes) => {
 
   const touchStressNudge = () => setState(s => ({ ...s, nudges: { ...s.nudges, lastStressISO: new Date().toISOString() } }));
 
+  /* ---------- Anschaffungen (Impulskauf-Bremse) ---------- */
+  const purchaseAdd = ({ title, price, uses, need, often }) => {
+    const t = (title || "").trim(); if (!t) return;
+    const entry = {
+      id: uid(), title: t,
+      price: Number.isFinite(+price) && +price > 0 ? +price : null,
+      uses: Number.isFinite(+uses) && +uses > 0 ? +uses : null,
+      need: !!need, often: !!often,
+      parkedAt: Date.now(),
+    };
+    setState(s => ({ ...s, purchases: [entry, ...(s.purchases || [])] }));
+  };
+  const purchaseRemove = (id) => setState(s => ({ ...s, purchases: (s.purchases || []).filter(p => p.id !== id) }));
+  const purchaseExtend = (id) => setState(s => ({
+    ...s,
+    purchases: (s.purchases || []).map(p => p.id === id ? { ...p, parkedAt: Date.now() } : p)
+  }));
+
   /* ---------- Aufgaben-Timer (Start/Ende je Aufgabe) ---------- */
   const setDayStart = (v) => setState(s => ({ ...s, settings: { ...s.settings, dayStart: v || "09:00" } }));
 
@@ -602,6 +622,8 @@ const autoPlanToday = (overrideMinutes) => {
     addJournal, addCheckin,
     // Aufgaben-Timer
     setDayStart, taskStart, taskStop, taskResetTimer,
+    // Anschaffungen
+    purchaseAdd, purchaseRemove, purchaseExtend,
     // Maintenance & Nudges
     exportJson, resetAll, touchStressNudge
   };
@@ -697,6 +719,7 @@ function migrate(s) {
   out.inbox ||= [];
   out.journal ||= [];
   out.checkins ||= [];
+  out.purchases ||= [];
   out.nudges ||= { lastStressISO: null };
   out.timers ||= { activeId: null, startedAt: null };
   out.settings ||= clone(INITIAL.settings);
@@ -705,7 +728,7 @@ function migrate(s) {
   if (!("focusId" in out.ui)) out.ui.focusId = null;
   if (!("edit" in out.ui)) out.ui.edit = null;
   // entfernte Routen auf Home zurücksetzen
-  if (!["home", "planner", "calendar", "stress", "checkin", "review"].includes(out.ui.route)) {
+  if (!["home", "planner", "calendar", "stress", "checkin", "review", "buy"].includes(out.ui.route)) {
     out.ui.route = "home";
   }
 
@@ -827,7 +850,7 @@ export default function App() {
         <aside className="panel">
           <div className="menu-title" id="navTitle">Navigation</div>
           <ul className="menu-list">
-            {["home", "planner", "calendar", "stress", "checkin", "review"].map(r => (
+            {["home", "planner", "calendar", "stress", "checkin", "review", "buy"].map(r => (
               <li key={r}>
                 <button className={`menu-btn ${state.ui.route === r ? "active" : ""}`} onClick={() => { api.setRoute(r); setMenuOpen(false); }}>{label(r)}</button>
               </li>
@@ -844,6 +867,7 @@ export default function App() {
         {state.ui.route === "checkin" && <CheckinView api={api} last={state.checkins[0]} checkins={state.checkins} />}
         {state.ui.route === "review" && <ReviewView state={state} api={api} />}
         {state.ui.route === "calendar" && <WeekCalendarView state={state} api={api} />}
+        {state.ui.route === "buy" && <PurchaseView state={state} api={api} />}
       </div>
 
       <footer className="footer">© {new Date().getFullYear()} FocusFlow — Lokale Daten</footer>
@@ -961,6 +985,20 @@ const sortedToday = useMemo(() => {
         <p className="muted">{state.inbox.length} geparkt · im Tagesplan zu Aufgaben machen</p>
         <button className="btn" onClick={() => go("planner")}>Zum Tagesplan</button>
       </div>
+
+      {(() => {
+        const ready = (state.purchases || []).filter(p => (p.parkedAt + PARK_MS) <= Date.now());
+        if (!ready.length) return null;
+        return (
+          <div className="card">
+            <strong>Anschaffung entscheiden</strong>
+            <p className="muted">
+              Bei {ready.length === 1 ? <>„{ready[0].title}"</> : `${ready.length} Anschaffungen`} ist die 72-h-Wartezeit vorbei. Willst du es immer noch?
+            </p>
+            <button className="btn" onClick={() => go("buy")}>Ansehen</button>
+          </div>
+        );
+      })()}
     </>
   );
 }
@@ -2175,6 +2213,154 @@ function WeekCalendarView({ state, api }) {
             </div>
           );
         })}
+      </div>
+    </>
+  );
+}
+
+/* =========================================================
+   Anschaffungs-Matrix – Impulskauf-Bremse mit 72h-Parkplatz
+   ========================================================= */
+const PARK_MS = 72 * 60 * 60 * 1000;
+
+function purchaseVerdict(need, often) {
+  if (need && often) return { key: "kaufen", label: "Kaufen", cls: "v-buy", note: "Echter Bedarf, häufige Nutzung – Preise vergleichen, dann ist es in Ordnung." };
+  if (need && !often) return { key: "leihen", label: "Leihen / gebraucht", cls: "v-borrow", note: "Bedarf ja, aber selten im Einsatz – leihen, mieten oder gebraucht kaufen spart viel." };
+  if (!need && often) return { key: "warten", label: "72 h warten", cls: "v-wait", note: "Wunsch, aber du würdest es oft nutzen – die Wartezeit entscheidet, nicht der Moment." };
+  return { key: "lassen", label: "Lassen", cls: "v-drop", note: "Wunsch und selten genutzt – das ist der klassische Impulskauf." };
+}
+
+function fmtRemain(ms) {
+  if (ms <= 0) return null;
+  const totalMin = Math.floor(ms / 60000);
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d > 0) return `${d} Tag${d > 1 ? "e" : ""} ${h} Std`;
+  if (h > 0) return `${h} Std ${m} Min`;
+  return `${m} Min`;
+}
+
+function PurchaseView({ state, api }) {
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [uses, setUses] = useState("");
+  const [need, setNeed] = useState(null);
+  const [often, setOften] = useState(null);
+  useNow(true);
+
+  const canAdd = title.trim() && need !== null && often !== null;
+  const preview = (need !== null && often !== null) ? purchaseVerdict(need, often) : null;
+  const perUse = (price && uses && +uses > 0) ? (+price / +uses) : null;
+
+  const add = () => {
+    if (!canAdd) return;
+    api.purchaseAdd({ title, price, uses, need, often });
+    setTitle(""); setPrice(""); setUses(""); setNeed(null); setOften(null);
+  };
+
+  const list = state.purchases || [];
+
+  return (
+    <>
+      <h2 className="h1">Anschaffungen</h2>
+      <p className="muted">Kurz prüfen statt sofort kaufen. Alles landet 72 Stunden auf dem Parkplatz – der Impuls verfällt, der echte Bedarf bleibt.</p>
+
+      <div className="card">
+        <strong>Vorab-Check</strong>
+        <ul className="precheck">
+          <li>Kenne ich das Ding seit <strong>20 Minuten</strong> oder länger als eine Woche?</li>
+          <li>Wie geht's mir gerade – gelangweilt, gestresst, aufgedreht? Dann reguliert der Kauf ein <strong>Gefühl</strong>, keinen Bedarf.</li>
+          <li>Habe ich schon etwas, das den Job erledigt – auch wenn es schlechter ist?</li>
+        </ul>
+      </div>
+
+      <div className="card">
+        <strong>Neue Anschaffung prüfen</strong>
+        <div className="add-form mt8">
+          <input className="input" placeholder="Was willst du kaufen?" value={title}
+            onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} />
+
+          <div className="row wrap gap">
+            <input className="input num" type="number" min="0" step="1" placeholder="Preis €" value={price} onChange={e => setPrice(e.target.value)} />
+            <input className="input num" type="number" min="1" step="1" placeholder="Nutzungen/Jahr" value={uses} onChange={e => setUses(e.target.value)} />
+            {perUse !== null && (
+              <span className={`badge small ${perUse > 10 ? "per-use-high" : "per-use-ok"}`}>
+                {perUse.toFixed(2)} € pro Nutzung
+              </span>
+            )}
+          </div>
+
+          <div className="matrix-choice">
+            <div className="mc-label">Bedarf oder Wunsch?</div>
+            <div className="mc-row">
+              <button type="button" className={`mc-btn ${need === true ? "active" : ""}`} onClick={() => setNeed(true)}>
+                Echter Bedarf<span>löst ein wiederkehrendes Problem</span>
+              </button>
+              <button type="button" className={`mc-btn ${need === false ? "active" : ""}`} onClick={() => setNeed(false)}>
+                Wunsch<span>macht Freude, löst kein Problem</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="matrix-choice">
+            <div className="mc-label">Wie oft nutzt du es realistisch?</div>
+            <div className="mc-row">
+              <button type="button" className={`mc-btn ${often === true ? "active" : ""}`} onClick={() => setOften(true)}>
+                Oft<span>regelmäßig im Alltag</span>
+              </button>
+              <button type="button" className={`mc-btn ${often === false ? "active" : ""}`} onClick={() => setOften(false)}>
+                Selten<span>ein paar Mal im Jahr</span>
+              </button>
+            </div>
+          </div>
+
+          {preview && (
+            <div className={`verdict-preview ${preview.cls}`}>
+              <span className="vp-label">{preview.label}</span>
+              <span className="vp-note">{preview.note}</span>
+            </div>
+          )}
+
+          <button className="btn btn-primary" onClick={add} type="button" disabled={!canAdd}>
+            ⏳ Auf den Parkplatz (72 h)
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <strong>Parkplatz</strong>
+        <p className="muted">{list.length ? `${list.length} Anschaffung${list.length > 1 ? "en" : ""} in Wartezeit.` : "Aktuell nichts geparkt."}</p>
+        <ul className="list mt8">
+          {list.map(p => {
+            const v = purchaseVerdict(p.need, p.often);
+            const remain = fmtRemain((p.parkedAt + PARK_MS) - Date.now());
+            const pu = (p.price && p.uses) ? (p.price / p.uses) : null;
+            return (
+              <li key={p.id} className={`item purchase-item ${remain ? "" : "is-ready"}`}>
+                <div className="row top">
+                  <span className="purchase-title">{p.title}</span>
+                  <span className={`verdict ${v.cls}`}>{v.label}</span>
+                </div>
+                {(p.price || pu) && (
+                  <div className="purchase-meta">
+                    {p.price ? `${p.price} €` : ""}
+                    {pu ? ` · ${pu.toFixed(2)} € pro Nutzung` : ""}
+                  </div>
+                )}
+                <div className="purchase-note">{v.note}</div>
+                {remain
+                  ? <div className="purchase-wait">⏳ Noch <strong>{remain}</strong> Wartezeit</div>
+                  : <div className="purchase-ready">✓ Wartezeit vorbei – willst du es immer noch?</div>}
+                <div className="task-opts">
+                  <button className="btn opt" type="button" onClick={() => api.purchaseRemove(p.id)}>Gekauft</button>
+                  <button className="btn opt" type="button" onClick={() => api.purchaseExtend(p.id)}>+72 h</button>
+                  <button className="btn opt danger" type="button" onClick={() => api.purchaseRemove(p.id)}>🗑 Doch nicht</button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </>
   );
