@@ -553,7 +553,7 @@ const autoPlanToday = (overrideMinutes) => {
   const touchStressNudge = () => setState(s => ({ ...s, nudges: { ...s.nudges, lastStressISO: new Date().toISOString() } }));
 
   /* ---------- Anschaffungen (Impulskauf-Bremse) ---------- */
-  const purchaseAdd = ({ title, price, uses, need, often, mood, waitDays }) => {
+  const purchaseAdd = ({ title, price, uses, need, often, mood, waitDays, ans }) => {
     const t = (title || "").trim(); if (!t) return;
     const entry = {
       id: uid(), title: t,
@@ -561,6 +561,7 @@ const autoPlanToday = (overrideMinutes) => {
       uses: Number.isFinite(+uses) && +uses > 0 ? +uses : null,
       need: !!need, often: !!often,
       mood: mood || null,
+      ans: ans || {},
       waitDays: Number(waitDays) > 0 ? Number(waitDays) : 3,
       parkedAt: Date.now(),
     };
@@ -2235,11 +2236,52 @@ const BUY_MOODS = [
 ];
 const moodOf = (key) => BUY_MOODS.find(m => m.key === key) || null;
 
-// Wartezeit-Formel: Basis (Matrix) + Gefühl + Preis + Preis pro Nutzung
-function computeWait({ need, often, mood, price, uses }) {
+// Bewertungsfragen mit Wertigkeit (negativ = verkürzt die Wartezeit)
+const BUY_QUESTIONS = [
+  {
+    key: "urgency", short: "Dringlichkeit", label: "Brauche ich es sofort oder kann es warten?",
+    options: [
+      { v: "now",  label: "Sofort",       hint: "akut nötig",     add: -2 },
+      { v: "soon", label: "Bald",         hint: "wäre gut",       add: 0 },
+      { v: "wait", label: "Kann warten",  hint: "kein Zeitdruck", add: 2 },
+    ],
+  },
+  {
+    key: "sixmonths", short: "In 6 Monaten", label: "Nutze ich es in 6 Monaten noch regelmäßig?",
+    options: [
+      { v: "yes",   label: "Ja, sicher",  hint: "fester Teil vom Alltag", add: -2 },
+      { v: "maybe", label: "Vielleicht",  hint: "unsicher",               add: 1 },
+      { v: "no",    label: "Eher nicht",  hint: "der Reiz verfliegt",     add: 2 },
+    ],
+  },
+  {
+    key: "roi", short: "Spart/verdient", label: "Spart es Geld oder hilft es, mehr zu verdienen?",
+    options: [
+      { v: "much", label: "Deutlich", hint: "zahlt sich aus",  add: -3 },
+      { v: "some", label: "Etwas",    hint: "kleiner Effekt",  add: -1 },
+      { v: "no",   label: "Nein",     hint: "reine Ausgabe",   add: 1 },
+    ],
+  },
+  {
+    key: "value", short: "Preis-Nutzen", label: "Spaß/Nutzen im Verhältnis zum Preis?",
+    options: [
+      { v: "worth", label: "Den Preis wert", hint: "klar ja",               add: -1 },
+      { v: "meh",   label: "Grenzwertig",    hint: "unsicher",              add: 1 },
+      { v: "over",  label: "Zu teuer",       hint: "Verhältnis stimmt nicht", add: 3 },
+    ],
+  },
+];
+
+// Wartezeit-Formel: Basis (Matrix) + Bewertungsfragen + Gefühl + Preis + Preis pro Nutzung
+function computeWait({ need, often, mood, price, uses, ans = {} }) {
   const steps = [];
   let days = need && often ? 1 : need && !often ? 2 : !need && often ? 3 : 5;
   steps.push({ t: need && often ? "Bedarf + oft genutzt" : need ? "Bedarf, aber selten" : often ? "Wunsch, oft genutzt" : "Wunsch, selten genutzt", d: days });
+
+  for (const q of BUY_QUESTIONS) {
+    const o = q.options.find(x => x.v === ans[q.key]);
+    if (o && o.add !== 0) { days += o.add; steps.push({ t: `${q.short}: ${o.label}`, d: o.add }); }
+  }
 
   const m = moodOf(mood);
   if (m && m.add > 0) { days += m.add; steps.push({ t: `Stimmung: ${m.label}`, d: m.add }); }
@@ -2287,17 +2329,19 @@ function PurchaseView({ state, api }) {
   const [need, setNeed] = useState(null);
   const [often, setOften] = useState(null);
   const [mood, setMood] = useState(null);
+  const [ans, setAns] = useState({});
   useNow(true);
 
-  const canAdd = title.trim() && need !== null && often !== null && mood !== null;
+  const allAnswered = BUY_QUESTIONS.every(q => ans[q.key]);
+  const canAdd = title.trim() && need !== null && often !== null && mood !== null && allAnswered;
   const preview = (need !== null && often !== null) ? purchaseVerdict(need, often) : null;
   const perUse = (price && uses && +uses > 0) ? (+price / +uses) : null;
-  const wait = canAdd ? computeWait({ need, often, mood, price, uses }) : null;
+  const wait = canAdd ? computeWait({ need, often, mood, price, uses, ans }) : null;
 
   const add = () => {
     if (!canAdd) return;
-    api.purchaseAdd({ title, price, uses, need, often, mood, waitDays: wait.days });
-    setTitle(""); setPrice(""); setUses(""); setNeed(null); setOften(null); setMood(null);
+    api.purchaseAdd({ title, price, uses, need, often, mood, ans, waitDays: wait.days });
+    setTitle(""); setPrice(""); setUses(""); setNeed(null); setOften(null); setMood(null); setAns({});
   };
 
   const list = state.purchases || [];
@@ -2356,6 +2400,21 @@ function PurchaseView({ state, api }) {
             </div>
           </div>
 
+          {BUY_QUESTIONS.map(q => (
+            <div className="matrix-choice" key={q.key}>
+              <div className="mc-label">{q.label}</div>
+              <div className="q-row">
+                {q.options.map(o => (
+                  <button key={o.v} type="button"
+                    className={`q-btn ${ans[q.key] === o.v ? "active" : ""}`}
+                    onClick={() => setAns(a => ({ ...a, [q.key]: o.v }))}>
+                    {o.label}<span>{o.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
           <div className="matrix-choice">
             <div className="mc-label">Wie geht's dir gerade – in diesem Moment?</div>
             <div className="mood-row">
@@ -2387,6 +2446,10 @@ function PurchaseView({ state, api }) {
               </ul>
               {wait.capped && <div className="wc-cap">gedeckelt auf 14 Tage</div>}
             </div>
+          )}
+
+          {!canAdd && (
+            <p className="muted">Beantworte alle Fragen – daraus wird deine Wartezeit berechnet.</p>
           )}
 
           <button className="btn btn-primary" onClick={add} type="button" disabled={!canAdd}>
