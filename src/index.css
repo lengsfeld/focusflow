@@ -550,20 +550,21 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .purchase-wait{font-size:13px;color:#fcd34d;margin-bottom:8px;font-variant-numeric:tabular-nums}
 .purchase-ready{font-size:13px;font-weight:700;color:#86efac;margin-bottom:8px}
 
-/* Bewertungsfragen */
-.q-row{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.q-btn{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:9px 11px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);cursor:pointer;font-weight:700;font-size:13px}
-.q-btn span{font-weight:400;font-size:10.5px;color:var(--muted);line-height:1.3}
-.q-btn:hover{filter:brightness(1.1)}
-.q-btn.active{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent);background:rgba(109,131,255,.10)}
-@media(max-width:420px){ .q-row{grid-template-columns:1fr} }
+/* Dropdown-Fragen */
+.pick-progress{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);margin-top:2px}
+.pick-progress .progress{margin-top:0}
+.pick-row{display:flex;flex-direction:column;gap:5px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2)}
+.pick-row.done{border-color:rgba(109,131,255,.45);background:rgba(109,131,255,.06)}
+.pick-label{font-size:12.5px;color:var(--muted);line-height:1.35}
+.pick-row.done .pick-label{color:#c3ccf5}
+.pick-row .select{background:#0a101b;font-size:14px;padding:9px 10px}
 
-/* Gefühlslage */
-.mood-row{display:flex;flex-wrap:wrap;gap:7px}
-.mood-btn{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:8px 12px;border-radius:11px;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);cursor:pointer;font-weight:700;font-size:13px;flex:1 1 140px}
-.mood-btn span{font-weight:400;font-size:11px;color:var(--muted);line-height:1.3}
-.mood-btn:hover{filter:brightness(1.1)}
-.mood-btn.active{border-color:#a855f7;box-shadow:inset 0 0 0 2px #a855f7;background:rgba(168,85,247,.12)}
+/* Klapp-Bereiche */
+.foldout > summary, .wc-fold > summary{cursor:pointer;font-weight:700;font-size:13.5px;list-style:none;padding:2px 0}
+.foldout > summary::-webkit-details-marker, .wc-fold > summary::-webkit-details-marker{display:none}
+.foldout > summary::before, .wc-fold > summary::before{content:"▸ ";color:var(--muted)}
+.foldout[open] > summary::before, .wc-fold[open] > summary::before{content:"▾ "}
+.wc-fold > summary{font-size:12px;color:var(--muted);font-weight:600;margin-top:8px}
 
 /* Wartezeit-Rechnung */
 .wait-calc{padding:12px 14px;border-radius:12px;background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.32)}

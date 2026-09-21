@@ -2272,6 +2272,31 @@ const BUY_QUESTIONS = [
   },
 ];
 
+// Alle Auswahlfelder als eine einheitliche Liste (Dropdowns)
+const BUY_FIELDS = [
+  {
+    key: "need", label: "Bedarf oder Wunsch?", options: [
+      { v: "need", label: "Echter Bedarf – löst ein wiederkehrendes Problem" },
+      { v: "want", label: "Wunsch – macht Freude, löst kein Problem" },
+    ],
+  },
+  {
+    key: "often", label: "Wie oft nutzt du es realistisch?", options: [
+      { v: "often", label: "Oft – regelmäßig im Alltag" },
+      { v: "rare", label: "Selten – ein paar Mal im Jahr" },
+    ],
+  },
+  ...BUY_QUESTIONS.map(q => ({
+    key: q.key,
+    label: q.label,
+    options: q.options.map(o => ({ v: o.v, label: `${o.label} – ${o.hint}` })),
+  })),
+  {
+    key: "mood", label: "Wie geht's dir gerade – in diesem Moment?",
+    options: BUY_MOODS.map(m => ({ v: m.key, label: `${m.label} – ${m.hint}` })),
+  },
+];
+
 // Wartezeit-Formel: Basis (Matrix) + Bewertungsfragen + Gefühl + Preis + Preis pro Nutzung
 function computeWait({ need, often, mood, price, uses, ans = {} }) {
   const steps = [];
@@ -2326,22 +2351,26 @@ function PurchaseView({ state, api }) {
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [uses, setUses] = useState("");
-  const [need, setNeed] = useState(null);
-  const [often, setOften] = useState(null);
-  const [mood, setMood] = useState(null);
-  const [ans, setAns] = useState({});
+  const [form, setForm] = useState({});
   useNow(true);
 
-  const allAnswered = BUY_QUESTIONS.every(q => ans[q.key]);
-  const canAdd = title.trim() && need !== null && often !== null && mood !== null && allAnswered;
-  const preview = (need !== null && often !== null) ? purchaseVerdict(need, often) : null;
+  const pick = (key, v) => setForm(f => ({ ...f, [key]: v }));
+  const answered = BUY_FIELDS.filter(f => form[f.key]).length;
+  const allAnswered = answered === BUY_FIELDS.length;
+
+  const need = form.need === "need";
+  const often = form.often === "often";
+  const ans = { urgency: form.urgency, sixmonths: form.sixmonths, roi: form.roi, value: form.value };
+
+  const canAdd = !!title.trim() && allAnswered;
+  const preview = (form.need && form.often) ? purchaseVerdict(need, often) : null;
   const perUse = (price && uses && +uses > 0) ? (+price / +uses) : null;
-  const wait = canAdd ? computeWait({ need, often, mood, price, uses, ans }) : null;
+  const wait = canAdd ? computeWait({ need, often, mood: form.mood, price, uses, ans }) : null;
 
   const add = () => {
     if (!canAdd) return;
-    api.purchaseAdd({ title, price, uses, need, often, mood, ans, waitDays: wait.days });
-    setTitle(""); setPrice(""); setUses(""); setNeed(null); setOften(null); setMood(null); setAns({});
+    api.purchaseAdd({ title, price, uses, need, often, mood: form.mood, ans, waitDays: wait.days });
+    setTitle(""); setPrice(""); setUses(""); setForm({});
   };
 
   const list = state.purchases || [];
@@ -2349,22 +2378,23 @@ function PurchaseView({ state, api }) {
   return (
     <>
       <h2 className="h1">Anschaffungen</h2>
-      <p className="muted">Kurz prüfen statt sofort kaufen. Die Wartezeit wird berechnet – je impulsiver die Lage, desto länger. Der Impuls verfällt, der echte Bedarf bleibt.</p>
+      <p className="muted">Kurz prüfen statt sofort kaufen. Die Wartezeit wird berechnet – je impulsiver die Lage, desto länger.</p>
 
-      <div className="card">
-        <strong>Vorab-Check</strong>
+      <details className="card foldout">
+        <summary>Vorab-Check – drei ehrliche Fragen</summary>
         <ul className="precheck">
           <li>Kenne ich das Ding seit <strong>20 Minuten</strong> oder länger als eine Woche?</li>
           <li>Habe ich schon etwas, das den Job erledigt – auch wenn es schlechter ist?</li>
           <li>Ist das Geld für etwas anderes eingeplant?</li>
         </ul>
-      </div>
+      </details>
 
       <div className="card">
         <strong>Neue Anschaffung prüfen</strong>
+
         <div className="add-form mt8">
           <input className="input" placeholder="Was willst du kaufen?" value={title}
-            onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} />
+            onChange={e => setTitle(e.target.value)} />
 
           <div className="row wrap gap">
             <input className="input num" type="number" min="0" step="1" placeholder="Preis €" value={price} onChange={e => setPrice(e.target.value)} />
@@ -2376,55 +2406,20 @@ function PurchaseView({ state, api }) {
             )}
           </div>
 
-          <div className="matrix-choice">
-            <div className="mc-label">Bedarf oder Wunsch?</div>
-            <div className="mc-row">
-              <button type="button" className={`mc-btn ${need === true ? "active" : ""}`} onClick={() => setNeed(true)}>
-                Echter Bedarf<span>löst ein wiederkehrendes Problem</span>
-              </button>
-              <button type="button" className={`mc-btn ${need === false ? "active" : ""}`} onClick={() => setNeed(false)}>
-                Wunsch<span>macht Freude, löst kein Problem</span>
-              </button>
-            </div>
+          <div className="pick-progress">
+            <span>{answered} von {BUY_FIELDS.length} Fragen beantwortet</span>
+            <div className="progress"><div className="progress-bar" style={{ width: `${(answered / BUY_FIELDS.length) * 100}%` }} /></div>
           </div>
 
-          <div className="matrix-choice">
-            <div className="mc-label">Wie oft nutzt du es realistisch?</div>
-            <div className="mc-row">
-              <button type="button" className={`mc-btn ${often === true ? "active" : ""}`} onClick={() => setOften(true)}>
-                Oft<span>regelmäßig im Alltag</span>
-              </button>
-              <button type="button" className={`mc-btn ${often === false ? "active" : ""}`} onClick={() => setOften(false)}>
-                Selten<span>ein paar Mal im Jahr</span>
-              </button>
-            </div>
-          </div>
-
-          {BUY_QUESTIONS.map(q => (
-            <div className="matrix-choice" key={q.key}>
-              <div className="mc-label">{q.label}</div>
-              <div className="q-row">
-                {q.options.map(o => (
-                  <button key={o.v} type="button"
-                    className={`q-btn ${ans[q.key] === o.v ? "active" : ""}`}
-                    onClick={() => setAns(a => ({ ...a, [q.key]: o.v }))}>
-                    {o.label}<span>{o.hint}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+          {BUY_FIELDS.map(f => (
+            <label className={`pick-row ${form[f.key] ? "done" : ""}`} key={f.key}>
+              <span className="pick-label">{f.label}</span>
+              <select className="select" value={form[f.key] || ""} onChange={e => pick(f.key, e.target.value)}>
+                <option value="" disabled>Bitte wählen…</option>
+                {f.options.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+              </select>
+            </label>
           ))}
-
-          <div className="matrix-choice">
-            <div className="mc-label">Wie geht's dir gerade – in diesem Moment?</div>
-            <div className="mood-row">
-              {BUY_MOODS.map(m => (
-                <button key={m.key} type="button" className={`mood-btn ${mood === m.key ? "active" : ""}`} onClick={() => setMood(m.key)}>
-                  {m.label}<span>{m.hint}</span>
-                </button>
-              ))}
-            </div>
-          </div>
 
           {preview && (
             <div className={`verdict-preview ${preview.cls}`}>
@@ -2439,17 +2434,16 @@ function PurchaseView({ state, api }) {
                 <span className="wc-days">{wait.days} Tag{wait.days > 1 ? "e" : ""}</span>
                 <span className="wc-label">berechnete Wartezeit</span>
               </div>
-              <ul className="wc-steps">
-                {wait.steps.map((st, i) => (
-                  <li key={i}><span>{st.t}</span><strong>{i === 0 ? `${st.d}` : `+${st.d}`}</strong></li>
-                ))}
-              </ul>
-              {wait.capped && <div className="wc-cap">gedeckelt auf 14 Tage</div>}
+              <details className="wc-fold">
+                <summary>Rechnung anzeigen</summary>
+                <ul className="wc-steps">
+                  {wait.steps.map((st, i) => (
+                    <li key={i}><span>{st.t}</span><strong>{i === 0 ? `${st.d}` : (st.d > 0 ? `+${st.d}` : `${st.d}`)}</strong></li>
+                  ))}
+                </ul>
+                {wait.capped && <div className="wc-cap">gedeckelt auf 14 Tage</div>}
+              </details>
             </div>
-          )}
-
-          {!canAdd && (
-            <p className="muted">Beantworte alle Fragen – daraus wird deine Wartezeit berechnet.</p>
           )}
 
           <button className="btn btn-primary" onClick={add} type="button" disabled={!canAdd}>
