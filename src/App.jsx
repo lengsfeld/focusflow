@@ -2329,11 +2329,46 @@ function computeWait({ need, often, mood, price, uses, ans = {} }) {
 const waitMsOf = (p) => (Number(p.waitDays) || 3) * DAY_MS;
 const purchaseReady = (p) => (p.parkedAt + waitMsOf(p)) <= Date.now();
 
-function purchaseVerdict(need, often) {
-  if (need && often) return { key: "kaufen", label: "Kaufen", cls: "v-buy", note: "Echter Bedarf, häufige Nutzung – Preise vergleichen, dann ist es in Ordnung." };
-  if (need && !often) return { key: "leihen", label: "Leihen / gebraucht", cls: "v-borrow", note: "Bedarf ja, aber selten im Einsatz – leihen, mieten oder gebraucht kaufen spart viel." };
-  if (!need && often) return { key: "warten", label: "72 h warten", cls: "v-wait", note: "Wunsch, aber du würdest es oft nutzen – die Wartezeit entscheidet, nicht der Moment." };
-  return { key: "lassen", label: "Lassen", cls: "v-drop", note: "Wunsch und selten genutzt – das ist der klassische Impulskauf." };
+// Empfehlung: verrechnet ALLE Antworten zu einem Sinn-Score und einem Urteil
+function recommendPurchase({ need, often, ans = {}, mood, price, uses }) {
+  let score = 0;
+  score += need ? 20 : 0;
+  score += often ? 15 : 0;
+  score += ans.urgency === "now" ? 10 : ans.urgency === "soon" ? 5 : 0;
+  score += ans.sixmonths === "yes" ? 20 : ans.sixmonths === "maybe" ? 8 : 0;
+  score += ans.roi === "much" ? 20 : ans.roi === "some" ? 10 : 0;
+  score += ans.value === "worth" ? 15 : ans.value === "meh" ? 6 : 0;
+
+  const perUse = (Number(price) > 0 && Number(uses) > 0) ? Number(price) / Number(uses) : null;
+  if (perUse !== null) { if (perUse > 25) score -= 10; else if (perUse > 10) score -= 5; }
+  score = Math.max(0, Math.min(100, score));
+
+  const borrowCase = need && !often && ans.sixmonths !== "yes";
+
+  let key, label, cls, text;
+  if (score >= 70) {
+    key = "buy"; label = "Kaufen"; cls = "v-buy";
+    text = "Das trägt sich: echter Nutzen, der anhält, und das Verhältnis stimmt. Preise vergleichen, dann ist es eine gute Entscheidung.";
+  } else if (borrowCase && score >= 30) {
+    key = "borrow"; label = "Leihen oder gebraucht"; cls = "v-borrow";
+    text = "Du brauchst es wirklich, aber nur selten. Leihen, mieten oder gebraucht kaufen bringt dir denselben Nutzen zu einem Bruchteil des Preises.";
+  } else if (score >= 50) {
+    key = "maybe"; label = "Wahrscheinlich sinnvoll"; cls = "v-wait";
+    text = "Vieles spricht dafür, aber nicht alles. Lass die Wartezeit laufen – überzeugt es dich danach noch, kauf es mit gutem Gewissen.";
+  } else if (score >= 30) {
+    key = "wait"; label = "Erstmal warten"; cls = "v-wait";
+    text = "Der Nutzen ist nicht klar genug für ein Ja im Moment. Das ist kein Nein – nur noch keine Entscheidung.";
+  } else {
+    key = "drop"; label = "Lassen"; cls = "v-drop";
+    text = "Wenig echter Bedarf, unsicherer Nutzen, ungünstiges Verhältnis – das ist ein Impulskauf. Das Geld ist woanders besser aufgehoben.";
+  }
+
+  const m = moodOf(mood);
+  const moodNote = (m && m.add >= 2)
+    ? `Dazu kommt: Du bist gerade ${m.label.toLowerCase()} – in dieser Stimmung kauft oft das Gefühl mit. Entscheide erst nach der Wartezeit.`
+    : null;
+
+  return { key, label, cls, text, score, moodNote };
 }
 
 function fmtRemain(ms) {
@@ -2363,9 +2398,9 @@ function PurchaseView({ state, api }) {
   const ans = { urgency: form.urgency, sixmonths: form.sixmonths, roi: form.roi, value: form.value };
 
   const canAdd = !!title.trim() && allAnswered;
-  const preview = (form.need && form.often) ? purchaseVerdict(need, often) : null;
+  const rec = allAnswered ? recommendPurchase({ need, often, ans, mood: form.mood, price, uses }) : null;
   const perUse = (price && uses && +uses > 0) ? (+price / +uses) : null;
-  const wait = canAdd ? computeWait({ need, often, mood: form.mood, price, uses, ans }) : null;
+  const wait = allAnswered ? computeWait({ need, often, mood: form.mood, price, uses, ans }) : null;
 
   const add = () => {
     if (!canAdd) return;
@@ -2421,10 +2456,15 @@ function PurchaseView({ state, api }) {
             </label>
           ))}
 
-          {preview && (
-            <div className={`verdict-preview ${preview.cls}`}>
-              <span className="vp-label">{preview.label}</span>
-              <span className="vp-note">{preview.note}</span>
+          {rec && (
+            <div className={`rec-box ${rec.cls}`}>
+              <div className="rec-head">
+                <span className="rec-label">{rec.label}</span>
+                <span className="rec-score">Sinn-Score {rec.score}/100</span>
+              </div>
+              <div className="rec-bar"><div className={`rec-fill ${rec.cls}`} style={{ width: `${rec.score}%` }} /></div>
+              <p className="rec-text">{rec.text}</p>
+              {rec.moodNote && <p className="rec-mood">{rec.moodNote}</p>}
             </div>
           )}
 
@@ -2432,7 +2472,7 @@ function PurchaseView({ state, api }) {
             <div className="wait-calc">
               <div className="wc-head">
                 <span className="wc-days">{wait.days} Tag{wait.days > 1 ? "e" : ""}</span>
-                <span className="wc-label">berechnete Wartezeit</span>
+                <span className="wc-label">Wartezeit vor der Entscheidung</span>
               </div>
               <details className="wc-fold">
                 <summary>Rechnung anzeigen</summary>
@@ -2457,7 +2497,7 @@ function PurchaseView({ state, api }) {
         <p className="muted">{list.length ? `${list.length} Anschaffung${list.length > 1 ? "en" : ""} in Wartezeit.` : "Aktuell nichts geparkt."}</p>
         <ul className="list mt8">
           {list.map(p => {
-            const v = purchaseVerdict(p.need, p.often);
+            const v = recommendPurchase({ need: p.need, often: p.often, ans: p.ans || {}, mood: p.mood, price: p.price, uses: p.uses });
             const remain = fmtRemain((p.parkedAt + waitMsOf(p)) - Date.now());
             const pu = (p.price && p.uses) ? (p.price / p.uses) : null;
             const m = moodOf(p.mood);
@@ -2472,7 +2512,7 @@ function PurchaseView({ state, api }) {
                   {pu ? ` · ${pu.toFixed(2)} € pro Nutzung` : ""}
                   {m ? `${(p.price || pu) ? " · " : ""}Stimmung beim Impuls: ${m.label}` : ""}
                 </div>
-                <div className="purchase-note">{v.note}</div>
+                <div className="purchase-note">{v.text}</div>
                 {remain
                   ? <div className="purchase-wait">⏳ Noch <strong>{remain}</strong> von {p.waitDays || 3} Tag{(p.waitDays || 3) > 1 ? "en" : ""}</div>
                   : <div className="purchase-ready">✓ Wartezeit vorbei – willst du es immer noch?</div>}
