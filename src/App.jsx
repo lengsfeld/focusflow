@@ -1907,7 +1907,20 @@ function FocusOverlay({ item, api }) {
   const isActive = timers?.activeId === item.id;
   const isBreak = !!item.isBreak;
   const [showEx, setShowEx] = useState(false);
+  const [capOpen, setCapOpen] = useState(false);
+  const [capText, setCapText] = useState("");
+  const [capMsg, setCapMsg] = useState("");
   useNow(true);
+
+  const flash = (msg) => { setCapMsg(msg); setTimeout(() => setCapMsg(""), 1800); };
+  const parkThought = () => {
+    const t = capText.trim(); if (!t) return;
+    api.inboxAdd(t); setCapText(""); flash("✓ In der Auffangbox geparkt");
+  };
+  const addAsTask = () => {
+    const t = capText.trim(); if (!t) return;
+    api.plannerAdd("backlog", t, "", null, null); setCapText(""); flash("✓ Als Aufgabe unter Später");
+  };
   const spent = liveSpentSec(item, timers);
   const plannedSec = (Number(item.durationMin) || 0) * 60;
   const remain = plannedSec ? Math.max(0, plannedSec - spent) : null;
@@ -1943,6 +1956,32 @@ function FocusOverlay({ item, api }) {
             ? <button className="btn btn-primary focus-btn" onClick={() => api.taskStart(item.id)}>▶ Start</button>
             : <button className="btn focus-btn focus-pause" onClick={() => api.taskStop()}>⏸ Pause</button>}
           <button className="btn btn-primary focus-btn" onClick={finish}>{isBreak ? "✓ Pause beendet" : "✓ Erledigt"}</button>
+        </div>
+
+        <div className="focus-capture">
+          {!capOpen ? (
+            <button className="focus-cap-toggle" onClick={() => setCapOpen(true)} type="button">
+              ➕ Gedanke notieren
+            </button>
+          ) : (
+            <div className="focus-cap-box">
+              <input
+                className="input"
+                autoFocus
+                placeholder="Was ist dir eingefallen?"
+                value={capText}
+                onChange={e => setCapText(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") parkThought(); if (e.key === "Escape") { setCapOpen(false); setCapText(""); } }}
+              />
+              <div className="focus-cap-actions">
+                <button className="btn btn-primary" type="button" onClick={parkThought} disabled={!capText.trim()}>💭 Parken</button>
+                <button className="btn" type="button" onClick={addAsTask} disabled={!capText.trim()}>+ Aufgabe</button>
+                <button className="btn ghost" type="button" onClick={() => { setCapOpen(false); setCapText(""); }}>Schließen</button>
+              </div>
+              <p className="focus-cap-hint">Raus aus dem Kopf, rein in die App – du bleibst im Fokus.</p>
+            </div>
+          )}
+          {capMsg && <div className="focus-cap-msg">{capMsg}</div>}
         </div>
 
         {isBreak && (
