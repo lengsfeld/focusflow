@@ -246,7 +246,8 @@ function computeBudgetToday(state) {
   const total = workMin + breakMin;
   const target = Number(state?.settings?.dayMinutes) || 480;
   const pct = target > 0 ? Math.min(100, Math.round((total / target) * 100)) : 0;
-  return { workMin, breakMin, total, target, pct };
+  const over = Math.max(0, total - target);
+  return { workMin, breakMin, total, target, pct, over };
 }
 
 /* ---------- Duplikat-Sperre: jede Aufgaben-ID nur in EINER Liste ----------
@@ -900,6 +901,17 @@ const sortedToday = useMemo(() => {
     return firstOpen?.id || null;
   }, [sortedToday, state.timers]);
 
+  // Aktuelle Aufgabe + die nächsten zwei (Pausen als Kontext inbegriffen)
+  const { currentItem, nextUp, restCount } = useMemo(() => {
+    const open = sortedToday.filter(t => !t.done);
+    const idx = open.findIndex(t => t.id === currentId);
+    const cur = idx >= 0 ? open[idx] : null;
+    const after = idx >= 0 ? open.slice(idx + 1) : open;
+    return { currentItem: cur, nextUp: after.slice(0, 2), restCount: Math.max(0, after.length - 2) };
+  }, [sortedToday, currentId]);
+
+  const budget = computeBudgetToday(state);
+
   const last7 = useMemo(() => {
     const now = Date.now();
     return state.journal.filter(j => now - new Date(j.dateISO).getTime() <= 7 * 24 * 3600 * 1000);
@@ -938,41 +950,61 @@ const sortedToday = useMemo(() => {
       </div>
 
       <div className="card">
-        <strong>Heute (geplant)</strong>
-        <p className="muted">Automatische Pause nach 1,5 h Arbeit. Pausenlänge: {state.settings.breakMinutes} Min.</p>
+        <div className="row between">
+          <strong>Jetzt dran</strong>
+          <span className="muted">{todayDone}/{todayTotal} erledigt</span>
+        </div>
+
         <QuickAddToday api={api} />
-        <ul className="list">
-          {sortedToday.map(it => (
+
+        {currentItem ? (
+          <ul className="list mt8">
             <PlannerRow
-              key={it.id}
               api={api}
               list="today"
-              item={it}
-              current={it.id === currentId}
+              item={currentItem}
+              current
               onToggle={(id) => api.plannerToggle("today", id)}
               onDelete={(id) => api.plannerDelete("today", id)}
-              onMove={(id, dir) => api.plannerMove("today", id, dir)}
-              onMoveBetween={(id, to) => api.moveItem("today", to, id)}
+              onMove={() => {}}
+              onMoveBetween={() => {}}
             />
-          ))}
-          {!sortedToday.length && <div className="muted">Noch nichts geplant.</div>}
-        </ul>
+          </ul>
+        ) : (
+          <p className="muted mt8">
+            {todayTotal === 0 ? "Noch nichts geplant – leg oben etwas an oder baue den Plan im Tagesplan." : "Alles erledigt für heute. 🎉"}
+          </p>
+        )}
+
+        {nextUp.length > 0 && (
+          <div className="next-up">
+            <div className="next-up-title">Als Nächstes</div>
+            {nextUp.map(it => (
+              <div key={it.id} className={`next-item ${it.isBreak ? "is-break" : ""}`}>
+                <span className="ni-title">{it.isBreak ? `🌿 ${it.title || "Pause"}` : it.title}</span>
+                {it.durationMin ? <span className="ni-min">{it.durationMin} Min</span> : null}
+              </div>
+            ))}
+            {restCount > 0 && <div className="next-rest">+{restCount} weitere im Tagesplan</div>}
+          </div>
+        )}
 
         <div className="progress"><div className="progress-bar" style={{ width: `${progressPct}%` }} /></div>
+
         <div className="row wrap mt8">
-          <button className="btn btn-primary" onClick={() => go("planner")}>Plan bearbeiten</button>
           <button
-            className="btn"
-            onClick={() => {
-              const act = state.timers?.activeId;
-              const first = state.planner.today.find(t => !t.isBreak && !t.done);
-              const id = act || first?.id;
-              if (id) api.setFocus(id);
-            }}
+            className="btn btn-primary"
+            onClick={() => { if (currentItem) api.setFocus(currentItem.id); else go("planner"); }}
           >🎯 Jetzt-Modus</button>
-          <button className="btn" onClick={() => go("review")}>🌙 Tagesrückblick</button>
+          <button className="btn" onClick={() => go("planner")}>Plan bearbeiten</button>
           <button className="btn" onClick={() => go("stress")}>3-Min Atemübung</button>
+          <button className="btn" onClick={() => go("review")}>🌙 Tagesrückblick</button>
         </div>
+      </div>
+
+      <div className={`card ${budget.over > 0 ? "budget-over" : ""}`}>
+        <strong>Tag im Blick</strong>
+        <BudgetBlock budget={budget} />
       </div>
 
       <div className="card">
@@ -1002,6 +1034,32 @@ const sortedToday = useMemo(() => {
           </div>
         );
       })()}
+    </>
+  );
+}
+
+/* --- Zeitbudget-Block (Übersicht + Tagesplan nutzen dieselbe Quelle) --- */
+function BudgetBlock({ budget }) {
+  const overLabel = Math.floor(budget.over / 60) > 0
+    ? `${Math.floor(budget.over / 60)} h ${budget.over % 60} Min`
+    : `${budget.over} Min`;
+  return (
+    <>
+      <p className="muted">
+        Arbeit <strong>{budget.workMin} Min</strong> · Pausen <strong>{budget.breakMin} Min</strong> ·
+        Summe <strong>{budget.total} Min</strong> / Ziel <strong>{budget.target} Min</strong>
+      </p>
+      <div className="progress">
+        <div className={`progress-bar ${budget.over > 0 ? "over" : ""}`} style={{ width: `${budget.pct}%` }} />
+      </div>
+      {budget.over > 0 ? (
+        <p className="budget-warn">
+          ⚠️ <strong>{overLabel} über deinem Ziel.</strong>{" "}
+          Der Plan passt nicht in den Tag – schieb etwas nach „Später", sonst entscheidet der Abend für dich.
+        </p>
+      ) : (
+        <p className="budget-ok">Noch <strong>{budget.target - budget.total} Min</strong> frei im Tag.</p>
+      )}
     </>
   );
 }
@@ -1114,6 +1172,14 @@ function PlannerView({ state, api }) {
 
   const budget = computeBudgetToday(state);
 
+  // Gleiche Logik wie in der Übersicht: laufender Timer, sonst erste offene Aufgabe
+  const todayCurrentId = (() => {
+    const list = [...(state.planner.today || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const act = state.timers?.activeId;
+    if (act && list.some(t => t.id === act && !t.isBreak)) return act;
+    return list.find(t => !t.isBreak && !t.done)?.id || null;
+  })();
+
   return (
     <>
       <GedankenBox state={state} api={api} />
@@ -1166,15 +1232,9 @@ function PlannerView({ state, api }) {
       </div>
 
       {/* Zeitbudget */}
-      <div className="card">
+      <div className={`card ${budget.over > 0 ? "budget-over" : ""}`}>
         <strong>Zeitbudget heute</strong>
-        <p className="muted">
-          Arbeit <strong>{budget.workMin} Min</strong> · Pausen <strong>{budget.breakMin} Min</strong> ·
-          Summe <strong>{budget.total} Min</strong> / Ziel <strong>{budget.target} Min</strong>
-        </p>
-        <div className="progress">
-          <div className="progress-bar" style={{ width: `${budget.pct}%` }} />
-        </div>
+        <BudgetBlock budget={budget} />
       </div>
 
       <h2 className="h1">Tagesplan</h2>
@@ -1193,6 +1253,7 @@ function PlannerView({ state, api }) {
           onMove={(id, dir) => api.plannerMove("today", id, dir)}
           allowAdd={false}
           dnd
+          currentId={todayCurrentId}
         />
 
         {/* Später (ehemals Backlog + Pool) */}
@@ -1524,7 +1585,7 @@ function _PlannerColumn({
   api,
   listKey, title, items,
   onAdd, onToggle, onDelete, onMove,
-  allowAdd, dnd
+  allowAdd, dnd, currentId
 }) {
   const [v, setV] = useState("");
   const [p, setP] = useState("NDNW");
@@ -1580,6 +1641,7 @@ function _PlannerColumn({
             onDelete={(id) => onDelete(id)}
             onMove={(id, dir) => onMove(id, dir)}
             dnd={dnd}
+            current={!!currentId && it.id === currentId}
           />
         ))}
         {!sorted.length && <div className="muted">Noch keine Einträge.</div>}
@@ -1588,7 +1650,7 @@ function _PlannerColumn({
   );
 }
 
-function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
+function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current }) {
   if (item.isBreak) {
     return (
       <li className="item break" aria-label={`Pause ${item.durationMin || 10} Minuten`}>
@@ -1620,7 +1682,7 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
 
   return (
     <li
-      className={`item task ${prioClass} ${dnd ? "sortable" : ""}`}
+      className={`item task ${prioClass} ${dnd ? "sortable" : ""} ${current && !item.done ? "is-current" : ""}`}
       data-id={item.id}
     >
       {/* Primär: Griff + Checkbox + Name */}
@@ -1633,6 +1695,7 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd }) {
           className="checkbox"
         />
         <span className={`task-title ${item.done ? "done" : ""}`}>{item.title}</span>
+        {current && !item.done && <span className="now-badge">▶ Jetzt dran</span>}
       </div>
 
       {/* Sekundär: Zeit · Prio · Deadline */}
