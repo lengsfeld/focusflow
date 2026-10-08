@@ -293,10 +293,30 @@ function useStore() {
 
   // "Kann noch nicht angefangen werden" – Abhängigkeit/Blockade (ohne Reflow, Dauer bleibt gleich)
   const setBlocked = (list, id, blocked, note) => setState(s => {
-    const arr = (s.planner[list] || []).map(x => x.id === id
-      ? { ...x, blocked: !!blocked, blockedNote: note !== undefined ? note : (x.blockedNote || "") }
-      : x);
-    return { ...s, planner: { ...s.planner, [list]: arr } };
+    const planner = { ...s.planner };
+    const src = [...(planner[list] || [])];
+    const idx = src.findIndex(x => x.id === id);
+    if (idx < 0) return s;
+    const updated = {
+      ...src[idx],
+      blocked: !!blocked,
+      blockedNote: note !== undefined ? note : (src[idx].blockedNote || ""),
+    };
+
+    // Regel: In "Heute" darf nichts liegen, das auf Freigabe wartet → zurück nach "Später"
+    if (blocked && list === "today" && !updated.isBreak) {
+      src.splice(idx, 1);
+      planner.today = _reflowToday(src, s.settings);
+      const back = [...(planner.backlog || [])];
+      updated.order = back.length ? Math.max(...back.map(x => x.order ?? 0)) + 1 : 0;
+      back.push(updated);
+      planner.backlog = back;
+      return { ...s, planner: _dedupePlanner(planner) };
+    }
+
+    src[idx] = updated;
+    planner[list] = src;
+    return { ...s, planner };
   });
 
   // Aufgaben-Editor
@@ -304,8 +324,20 @@ function useStore() {
   const plannerUpdate = (list, id, patch) => setState(s => {
     const arr = (s.planner[list] || []).map(x => x.id === id ? { ...x, ...patch } : x);
     const planner = { ...s.planner, [list]: arr };
+
+    // Im Editor blockiert, während die Aufgabe in "Heute" liegt → nach "Später"
+    if (list === "today" && patch && patch.blocked) {
+      const item = arr.find(x => x.id === id);
+      if (item && !item.isBreak) {
+        planner.today = arr.filter(x => x.id !== id);
+        const back = [...(planner.backlog || [])];
+        back.push({ ...item, order: back.length ? Math.max(...back.map(x => x.order ?? 0)) + 1 : 0 });
+        planner.backlog = back;
+      }
+    }
+
     if (list === "today") planner.today = _reflowToday(planner.today, s.settings);
-    return { ...s, planner };
+    return { ...s, planner: _dedupePlanner(planner) };
   });
 
   // Prio einer Aufgabe setzen (Matrix: Ziehen zwischen Feldern)
@@ -483,9 +515,12 @@ const autoPlanToday = (overrideMinutes) => {
     const cfg = s.settings || { dayMinutes: 480, breakMinutes: 10, longBreakMinutes: 45, maxNoBreak: 90 };
     const maxMinutes = Math.max(30, overrideMinutes ?? cfg.dayMinutes);
 
-    const todayList   = (s.planner.today   || []).filter(it => !it.done && !it.isBreak);
-    const backlogList = (s.planner.backlog || []).filter(it => !it.done);
-    const poolList    = (s.planner.pool    || []).filter(it => !it.done);
+    // Blockierte Aufgaben ("wartet auf Freigabe") werden NICHT eingeplant
+    const todayList   = (s.planner.today   || []).filter(it => !it.done && !it.isBreak && !it.blocked);
+    const backlogList = (s.planner.backlog || []).filter(it => !it.done && !it.blocked);
+    const poolList    = (s.planner.pool    || []).filter(it => !it.done && !it.blocked);
+    // Blockiertes, das noch in "Heute" liegt, wandert nach "Später"
+    const blockedFromToday = (s.planner.today || []).filter(it => !it.isBreak && it.blocked);
 
     // Kandidaten dedupliziert & nach Deadlines/Prio/Dauer sortieren
     const candidates = uniqById([...todayList, ...backlogList, ...poolList])
@@ -524,7 +559,7 @@ const autoPlanToday = (overrideMinutes) => {
     // Nicht geplante Aufgaben wandern in "Später" (Backlog) – Pool entfällt.
     const candidateIds = new Set(candidates.map(c => c.id));
     const backlogKeep = (s.planner.backlog || []).filter(x => !candidateIds.has(x.id)); // z. B. erledigte
-    const newBacklog = [...backlogKeep, ...overflow].sort(_sortByDuePrioDurPublic);
+    const newBacklog = [...backlogKeep, ...overflow, ...blockedFromToday].sort(_sortByDuePrioDurPublic);
 
     return {
       ...s,
@@ -1441,6 +1476,9 @@ function _dndReorderOrMove(api, { from, to, draggedId, beforeId }) {
     const draggedIdx = src.findIndex(x => x.id === draggedId);
     if (draggedIdx < 0) return s;
     let dragged = { ...src[draggedIdx] };
+
+    // Regel: Was auf Freigabe wartet, darf nicht nach "Heute"
+    if (to === "today" && from !== "today" && dragged.blocked) return s;
 
     // Entfernen aus Quelle
     src.splice(draggedIdx, 1);
