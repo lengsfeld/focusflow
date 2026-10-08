@@ -1709,9 +1709,14 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
         </li>
       );
     }
+    const cPrio =
+      item.prio === "DW" ? "prio-dw" :
+      item.prio === "NDW" ? "prio-ndw" :
+      item.prio === "DNW" ? "prio-dnw" :
+      item.prio === "NDNW" ? "prio-ndnw" : "";
     return (
       <li
-        className={`item task compact-row ${dnd ? "sortable drag-handle" : ""} ${current && !item.done ? "is-current" : ""} ${item.blocked && !item.done ? "is-blocked" : ""}`}
+        className={`item task compact-row ${cPrio} ${dnd ? "sortable drag-handle" : ""} ${current && !item.done ? "is-current" : ""} ${item.blocked && !item.done ? "is-blocked" : ""}`}
         data-id={item.id}
         title={item.blocked ? `Wartet${item.blockedNote ? ` auf: ${item.blockedNote}` : ""}` : item.title}
       >
