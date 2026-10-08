@@ -159,15 +159,16 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* ------------ Task card layout ----------- */
 .item.task{
   border:1px solid rgba(255,255,255,0.08);
+  border-left:4px solid rgba(255,255,255,0.20);
   border-radius:14px;
-  padding:12px 14px;
+  padding:12px 14px 12px 13px;
   background:rgba(255,255,255,0.02);
   transition:background .2s ease, transform .12s ease, filter .2s ease;
 }
 .item.task:hover{ transform:translateY(-2px) }
 .item.task.done{ filter:saturate(.65) brightness(.95) }
 
-.item.task .row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.item.task .row{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
 .item.task .row.top{margin-bottom:4px}
 .item.task .row.mid{margin-bottom:8px;font-size:.95rem;opacity:.95}
 .item.task .row.bottom{gap:6px;flex-wrap:wrap}
@@ -195,10 +196,10 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .badge.prio{border-color:transparent;background:#172036}
 
 /* ------- Priority colors (override) ------ */
-.item.task.prio-dw   { background:var(--prio-dw-bg);  border-left:3px solid var(--prio-dw-l); }
-.item.task.prio-dnw  { background:var(--prio-dnw-bg); border-left:3px solid var(--prio-dnw-l); }
-.item.task.prio-ndw  { background:var(--prio-ndw-bg); border-left:3px solid var(--prio-ndw-l); }
-.item.task.prio-ndnw { background:var(--prio-ndnw-bg);border-left:3px solid var(--prio-ndnw-l); }
+.item.task.prio-dw   { background:var(--prio-dw-bg);  border-left:4px solid var(--prio-dw-l); }
+.item.task.prio-dnw  { background:var(--prio-dnw-bg); border-left:4px solid var(--prio-dnw-l); }
+.item.task.prio-ndw  { background:var(--prio-ndw-bg); border-left:4px solid var(--prio-ndw-l); }
+.item.task.prio-ndnw { background:var(--prio-ndnw-bg);border-left:4px solid var(--prio-ndnw-l); }
 
 /* ------- Aufgaben-Hierarchie: Name > Zeit > Prio > Optionen ------- */
 .item.task .row.top{justify-content:flex-start;gap:4px;margin-bottom:2px}
@@ -212,13 +213,16 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .item.task .tm-prio.prio-ndw{color:var(--prio-ndw-l);border-color:var(--prio-ndw-l)}
 .item.task .tm-prio.prio-dnw{color:var(--prio-dnw-l);border-color:var(--prio-dnw-l)}
 .item.task .tm-prio.prio-ndnw{color:var(--prio-ndnw-l);border-color:var(--prio-ndnw-l)}
-.item.task .tm-due{margin-left:auto;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.item.task .tm-due{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.item.task .now-badge{margin-left:4px}
+.item.task .task-title{flex:0 1 auto}
 
 /* Tertiär: Optionen (klein, ghost) */
 .item.task .task-opts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .item.task .task-opts .btn.opt{padding:5px 10px;font-size:12px;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:9px}
 .item.task .task-opts .btn.opt:hover{color:var(--fg);border-color:var(--accent);filter:none}
-.item.task .task-opts .btn.opt.danger{margin-left:auto}
+.item.task .task-opts{justify-content:flex-start}
+.item.task .task-opts .btn.opt.danger{margin-left:0}
 .item.task .task-opts .btn.opt.danger:hover{color:#f87171;border-color:#f87171}
 
 /* --------------- Break items (positiv gerahmt) ------------- */
@@ -266,7 +270,7 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .item.task.is-current{box-shadow:0 0 0 1px var(--accent);border-color:var(--accent)}
 
 /* Blockiert / wartet auf etwas */
-.item.task.is-blocked{opacity:.62;border-left:3px solid #f59e0b}
+.item.task.is-blocked{opacity:.62;border-left:4px solid #f59e0b}
 .item.task.is-blocked .task-title{color:#d8dbe6}
 .tm-blocked{font-size:12.5px;color:#fcd34d;background:rgba(245,158,11,.09);border-left:3px solid #f59e0b;border-radius:8px;padding:6px 10px;margin:0 0 9px}
 .task-opts .btn.opt.blocked-on{color:#fcd34d;border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.1)}
