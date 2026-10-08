@@ -479,6 +479,10 @@ const moveItem = (from, to, id) => setState(s => {
   if (idx < 0) return s;
 
   let item = { ...src[idx] };
+
+  // Regel: Was auf Freigabe wartet, darf nicht nach "Heute"
+  if (to === "today" && item.blocked) return s;
+
   src.splice(idx, 1);
   planner[from] = src;
 
@@ -1791,8 +1795,11 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
           <button className="btn opt" title="Fokus-Vollbild" onClick={() => api.setFocus(item.id)} type="button">🎯 Fokus</button>
         )}
         <button className="btn opt" title="Bearbeiten" onClick={() => api.setEdit(list, item.id)} type="button">✏️ Bearbeiten</button>
-        {list !== "today" && (
+        {list !== "today" && !item.blocked && (
           <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "today", draggedId: item.id })} type="button">→ Heute</button>
+        )}
+        {list !== "today" && item.blocked && (
+          <span className="opt-locked" title="Erst freigeben, dann einplanen">🔒 nicht für heute</span>
         )}
         {list !== "backlog" && (
           <button className="btn opt" onClick={() => _dndReorderOrMove(api, { from: list, to: "backlog", draggedId: item.id })} type="button">→ Später</button>
