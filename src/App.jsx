@@ -1877,29 +1877,48 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
   );
 }
 
-/* --- Lauf-Animation: Pegelbalken + Status, der die Laufzeit kennt --- */
-function workStage(spentSec, plannedSec, isBreak) {
-  if (isBreak) {
-    const left = plannedSec ? plannedSec - spentSec : null;
-    if (left !== null && left <= 0) return { icon: "🌿", text: "Pause erfüllt" };
-    return { icon: "🌿", text: "Erholung läuft" };
-  }
-  if (plannedSec > 0 && spentSec > plannedSec) return { icon: "⏱", text: "Nachspielzeit" };
+/* --- Lauf-Animation: eine Pflanze, die in 10 Minuten aufblüht --- */
+const GROW_PHRASES = [
+  ["Samen gelegt", "Boden bereitet", "Es geht los"],
+  ["Es keimt", "Zartes Grün", "Der erste Trieb"],
+  ["Erstes Blatt", "Es wird was", "Wächst sich aus"],
+  ["Richtig am Wachsen", "Kräftig dabei", "Blatt um Blatt"],
+  ["Knospe kurz vorm Aufgehen", "Gleich blüht's", "Fast soweit"],
+  ["Voll erblüht", "Prachtstück", "Das ist Flow"],
+];
+const BLOOM_PHRASES = ["Blüht über die Zeit", "Nachspielzeit mit Stil", "Immer noch am Blühen"];
+const BREAK_PHRASES = ["Erholung läuft", "Durchatmen", "Kurz regenerieren", "Wurzeln wässern"];
+
+// 0–10 Minuten in sechs Stufen, danach dauerhaft Blüte
+function growStage(spentSec) {
   const m = spentSec / 60;
-  if (m < 1) return { icon: "🫠", text: "Warmlaufen" };
-  if (m < 5) return { icon: "🚶", text: "Angelaufen" };
-  if (m < 15) return { icon: "🌊", text: "Im Flow" };
-  if (m < 30) return { icon: "🧠", text: "Tief drin" };
-  if (m < 60) return { icon: "⚙️", text: "Maschinenraum" };
-  return { icon: "🏃", text: "Dauerlauf" };
+  if (m < 1) return 0;
+  if (m < 2.5) return 1;
+  if (m < 5) return 2;
+  if (m < 7.5) return 3;
+  if (m < 10) return 4;
+  return 5;
 }
 
 function WorkPulse({ spentSec, plannedSec, isBreak, big }) {
-  const st = workStage(spentSec, plannedSec, isBreak);
+  const over = !isBreak && plannedSec > 0 && spentSec > plannedSec;
+  const stage = isBreak ? 3 : growStage(spentSec);
+  // Begriffe wechseln alle 20 Sekunden – ruhig, aber lebendig
+  const tick = Math.floor(spentSec / 20);
+  const pool = isBreak ? BREAK_PHRASES : (over ? BLOOM_PHRASES : GROW_PHRASES[stage]);
+  const text = pool[tick % pool.length];
+
   return (
     <span className={`work-pulse ${isBreak ? "is-break" : ""} ${big ? "big" : ""}`}>
-      <span className="wp-bars" aria-hidden="true"><i /><i /><i /></span>
-      <span className="wp-text">{st.icon} {st.text}</span>
+      <span className={`plant stage-${stage} ${over ? "is-bloom-over" : ""}`} aria-hidden="true">
+        <span className="pl-stem" />
+        <span className="pl-leaf l" />
+        <span className="pl-leaf r" />
+        <span className="pl-bud" />
+        <span className="pl-bloom" />
+        <span className="pl-soil" />
+      </span>
+      <span className="wp-text">{text}</span>
     </span>
   );
 }
