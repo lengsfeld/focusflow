@@ -1928,12 +1928,14 @@ function WorkPulse({ id, spentSec, plannedSec, isBreak, big }) {
           <span className="an">
             <span className="an-tail" />
             <span className="an-body" />
+            <span className="an-chest" />
             <span className="an-head" />
             <span className="an-ear l" />
             <span className="an-ear r" />
-            {kind === "dog" && <span className="an-snout" />}
+            <span className="an-snout" />
             <span className="an-eye l" />
             <span className="an-eye r" />
+            <span className="an-nose" />
           </span>
         )}
       </span>

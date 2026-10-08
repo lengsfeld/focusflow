@@ -613,25 +613,80 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .plant.cat.stage-5 .an,.plant.dog.stage-5 .an{--s:1}
 
 .an > span{position:absolute;transition:all .6s cubic-bezier(.3,.8,.4,1)}
-.an-body{left:50%;bottom:0;width:calc(17px * var(--pl));height:calc(15px * var(--pl));margin-left:calc(-8.5px * var(--pl));border-radius:50% 50% 46% 46%;background:#9ca3af}
-.an-head{left:50%;bottom:calc(12px * var(--pl));width:calc(13px * var(--pl));height:calc(12px * var(--pl));margin-left:calc(-6.5px * var(--pl));border-radius:50%;background:#9ca3af;transform:scale(0);opacity:0}
-.an-ear{bottom:calc(21px * var(--pl));width:0;height:0;border-left:calc(3.5px * var(--pl)) solid transparent;border-right:calc(3.5px * var(--pl)) solid transparent;border-bottom:calc(6px * var(--pl)) solid #9ca3af;transform:scale(0);opacity:0}
-.an-ear.l{left:50%;margin-left:calc(-7px * var(--pl))}
-.an-ear.r{left:50%;margin-left:calc(0px * var(--pl))}
-.an-eye{width:calc(2px * var(--pl));height:calc(2px * var(--pl));border-radius:50%;background:#0f172a;bottom:calc(18px * var(--pl));transform:scale(0);opacity:0}
-.an-eye.l{left:50%;margin-left:calc(-4px * var(--pl))}
-.an-eye.r{left:50%;margin-left:calc(2px * var(--pl))}
-.an-tail{left:50%;margin-left:calc(6px * var(--pl));bottom:calc(1px * var(--pl));width:calc(3px * var(--pl));height:calc(13px * var(--pl));border-radius:999px;background:#9ca3af;transform-origin:bottom left;transform:rotate(-18deg) scale(0);opacity:0}
-.an-snout{left:50%;bottom:calc(12px * var(--pl));width:calc(7px * var(--pl));height:calc(5px * var(--pl));margin-left:calc(-3.5px * var(--pl));border-radius:50%;background:#e7d3b8;transform:scale(0);opacity:0}
 
-/* Hund: andere Farben, Schlappohren */
-.plant.dog .an-body,.plant.dog .an-head{background:#b98b5e}
-.plant.dog .an-ear{
-  border:0;width:calc(5px * var(--pl));height:calc(9px * var(--pl));
-  border-radius:999px;background:#8a6240;bottom:calc(16px * var(--pl));
+/* Katze (Basis) – sitzende Silhouette, warmes Ingwer */
+.an-body{
+  left:50%;bottom:0;
+  width:calc(15px * var(--pl));height:calc(17px * var(--pl));
+  margin-left:calc(-7.5px * var(--pl));
+  border-radius:44% 44% 40% 40%;background:#ef9b4f;
 }
-.plant.dog .an-ear.l{margin-left:calc(-9px * var(--pl))}
+.an-chest{
+  left:50%;bottom:0;width:calc(8px * var(--pl));height:calc(10px * var(--pl));
+  margin-left:calc(-4px * var(--pl));border-radius:50% 50% 44% 44%;
+  background:#fde8d0;transform:scale(0);opacity:0;
+}
+.an-head{
+  left:50%;bottom:calc(13px * var(--pl));
+  width:calc(14px * var(--pl));height:calc(12.5px * var(--pl));
+  margin-left:calc(-7px * var(--pl));border-radius:50%;background:#ef9b4f;
+  transform:scale(0);opacity:0;
+}
+.an-ear{
+  bottom:calc(22px * var(--pl));width:0;height:0;
+  border-left:calc(3.6px * var(--pl)) solid transparent;
+  border-right:calc(3.6px * var(--pl)) solid transparent;
+  border-bottom:calc(6.5px * var(--pl)) solid #ef9b4f;
+  transform:scale(0);opacity:0;
+}
+.an-ear::after{
+  content:"";position:absolute;left:calc(-1.8px * var(--pl));top:calc(2.4px * var(--pl));
+  width:0;height:0;
+  border-left:calc(1.8px * var(--pl)) solid transparent;
+  border-right:calc(1.8px * var(--pl)) solid transparent;
+  border-bottom:calc(3.2px * var(--pl)) solid #f9a8d4;
+}
+.an-ear.l{left:50%;margin-left:calc(-7.5px * var(--pl));transform-origin:bottom center}
+.an-ear.r{left:50%;margin-left:calc(0.3px * var(--pl));transform-origin:bottom center}
+.an-snout{
+  left:50%;bottom:calc(13.5px * var(--pl));
+  width:calc(9px * var(--pl));height:calc(5.5px * var(--pl));
+  margin-left:calc(-4.5px * var(--pl));border-radius:50%;
+  background:#fde8d0;transform:scale(0);opacity:0;
+}
+.an-eye{
+  width:calc(2.6px * var(--pl));height:calc(3px * var(--pl));
+  border-radius:50%;background:#1f2937;
+  bottom:calc(18.5px * var(--pl));transform:scale(0);opacity:0;
+}
+.an-eye.l{left:50%;margin-left:calc(-4.4px * var(--pl))}
+.an-eye.r{left:50%;margin-left:calc(1.8px * var(--pl))}
+.an-nose{
+  left:50%;bottom:calc(16.2px * var(--pl));
+  width:calc(2.4px * var(--pl));height:calc(2px * var(--pl));
+  margin-left:calc(-1.2px * var(--pl));border-radius:50% 50% 60% 60%;
+  background:#f472b6;transform:scale(0);opacity:0;
+}
+.an-tail{
+  left:50%;margin-left:calc(5.5px * var(--pl));bottom:calc(1px * var(--pl));
+  width:calc(3.4px * var(--pl));height:calc(15px * var(--pl));
+  border-radius:999px;background:#ef9b4f;
+  transform-origin:bottom left;transform:rotate(-18deg) scale(0);opacity:0;
+}
+
+/* Hund: erdige Farben, Schlappohren, größere Schnauze */
+.plant.dog .an-body,.plant.dog .an-head{background:#b98b5e}
+.plant.dog .an-body{width:calc(16px * var(--pl));margin-left:calc(-8px * var(--pl));border-radius:46% 46% 42% 42%}
+.plant.dog .an-chest{background:#f0ddc4}
+.plant.dog .an-ear{
+  border:0;width:calc(5.5px * var(--pl));height:calc(10px * var(--pl));
+  border-radius:999px;background:#8a6240;bottom:calc(15.5px * var(--pl));
+}
+.plant.dog .an-ear::after{display:none}
+.plant.dog .an-ear.l{margin-left:calc(-9.5px * var(--pl))}
 .plant.dog .an-ear.r{margin-left:calc(4px * var(--pl))}
+.plant.dog .an-snout{background:#f0ddc4;height:calc(6px * var(--pl));bottom:calc(13px * var(--pl))}
+.plant.dog .an-nose{background:#3f2d1d;width:calc(3px * var(--pl));height:calc(2.4px * var(--pl));margin-left:calc(-1.5px * var(--pl));bottom:calc(15.5px * var(--pl))}
 .plant.dog .an-tail{background:#b98b5e}
 .plant.dog .an-eye{bottom:calc(19px * var(--pl))}
 
@@ -646,12 +701,21 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 .plant.cat.stage-3 .an-ear,.plant.dog.stage-3 .an-ear,
 .plant.cat.stage-4 .an-ear,.plant.dog.stage-4 .an-ear,
 .plant.cat.stage-5 .an-ear,.plant.dog.stage-5 .an-ear,
-.plant.dog.stage-2 .an-snout,.plant.dog.stage-3 .an-snout,
-.plant.dog.stage-4 .an-snout,.plant.dog.stage-5 .an-snout{transform:scale(1);opacity:1}
+.plant.cat.stage-2 .an-snout,.plant.dog.stage-2 .an-snout,
+.plant.cat.stage-3 .an-snout,.plant.dog.stage-3 .an-snout,
+.plant.cat.stage-4 .an-snout,.plant.dog.stage-4 .an-snout,
+.plant.cat.stage-5 .an-snout,.plant.dog.stage-5 .an-snout,
+.plant.cat.stage-2 .an-chest,.plant.dog.stage-2 .an-chest,
+.plant.cat.stage-3 .an-chest,.plant.dog.stage-3 .an-chest,
+.plant.cat.stage-4 .an-chest,.plant.dog.stage-4 .an-chest,
+.plant.cat.stage-5 .an-chest,.plant.dog.stage-5 .an-chest{transform:scale(1);opacity:1}
 
 .plant.cat.stage-3 .an-eye,.plant.dog.stage-3 .an-eye,
 .plant.cat.stage-4 .an-eye,.plant.dog.stage-4 .an-eye,
-.plant.cat.stage-5 .an-eye,.plant.dog.stage-5 .an-eye{transform:scale(1);opacity:1}
+.plant.cat.stage-5 .an-eye,.plant.dog.stage-5 .an-eye,
+.plant.cat.stage-3 .an-nose,.plant.dog.stage-3 .an-nose,
+.plant.cat.stage-4 .an-nose,.plant.dog.stage-4 .an-nose,
+.plant.cat.stage-5 .an-nose,.plant.dog.stage-5 .an-nose{transform:scale(1);opacity:1}
 
 .plant.cat.stage-4 .an-tail,.plant.dog.stage-4 .an-tail,
 .plant.cat.stage-5 .an-tail,.plant.dog.stage-5 .an-tail{transform:rotate(-18deg) scale(1);opacity:1}
