@@ -291,6 +291,14 @@ function useStore() {
   // Kompakt-Ansicht im Tagesplan (nur Titel statt voller Karten)
   const setCompact = (v) => setState(s => ({ ...s, ui: { ...s.ui, compact: !!v } }));
 
+  // "Kann noch nicht angefangen werden" – Abhängigkeit/Blockade (ohne Reflow, Dauer bleibt gleich)
+  const setBlocked = (list, id, blocked, note) => setState(s => {
+    const arr = (s.planner[list] || []).map(x => x.id === id
+      ? { ...x, blocked: !!blocked, blockedNote: note !== undefined ? note : (x.blockedNote || "") }
+      : x);
+    return { ...s, planner: { ...s.planner, [list]: arr } };
+  });
+
   // Aufgaben-Editor
   const setEdit = (list, id) => setState(s => ({ ...s, ui: { ...s.ui, edit: (list && id) ? { list, id } : null } }));
   const plannerUpdate = (list, id, patch) => setState(s => {
@@ -620,7 +628,7 @@ const autoPlanToday = (overrideMinutes) => {
     }
   }; // <-- diese Klammer + Semikolon MUSS da sein
 
-  return { state, setState, setRoute, setFocus, setEdit, setCompact, setListOrder, setPrio, setConsent, setNickname,
+  return { state, setState, setRoute, setFocus, setEdit, setCompact, setBlocked, setListOrder, setPrio, setConsent, setNickname,
     // Planner
     plannerAdd, plannerToggle, plannerDelete, plannerUpdate, plannerMove, moveItem, autoPlanToday,
     // Inbox
@@ -709,7 +717,9 @@ function migrate(s) {
       durationMin: typeof it.durationMin === "number" ? it.durationMin : (it.isBreak ? (it.durationMin || 10) : null),
       dueISO: typeof it.dueISO === "string" ? it.dueISO : null,
       isBreak: !!it.isBreak,
-      spentSec: Number(it.spentSec) || 0
+      spentSec: Number(it.spentSec) || 0,
+      blocked: !!it.blocked,
+      blockedNote: typeof it.blockedNote === "string" ? it.blockedNote : ""
     }));
   }
 
@@ -901,7 +911,7 @@ const sortedToday = useMemo(() => {
   const currentId = useMemo(() => {
     const act = state.timers?.activeId;
     if (act && sortedToday.some(t => t.id === act && !t.isBreak)) return act;
-    const firstOpen = sortedToday.find(t => !t.isBreak && !t.done);
+    const firstOpen = sortedToday.find(t => !t.isBreak && !t.done && !t.blocked);
     return firstOpen?.id || null;
   }, [sortedToday, state.timers]);
 
@@ -1164,7 +1174,7 @@ function PlannerView({ state, api }) {
     const list = [...(state.planner.today || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const act = state.timers?.activeId;
     if (act && list.some(t => t.id === act && !t.isBreak)) return act;
-    return list.find(t => !t.isBreak && !t.done)?.id || null;
+    return list.find(t => !t.isBreak && !t.done && !t.blocked)?.id || null;
   })();
 
   return (
@@ -1659,10 +1669,11 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
     }
     return (
       <li
-        className={`item task compact-row ${dnd ? "sortable drag-handle" : ""} ${current && !item.done ? "is-current" : ""}`}
+        className={`item task compact-row ${dnd ? "sortable drag-handle" : ""} ${current && !item.done ? "is-current" : ""} ${item.blocked && !item.done ? "is-blocked" : ""}`}
         data-id={item.id}
-        title={item.title}
+        title={item.blocked ? `Wartet${item.blockedNote ? ` auf: ${item.blockedNote}` : ""}` : item.title}
       >
+        {item.blocked && !item.done && <span className="cr-block">🚧</span>}
         <span className={`cr-title ${item.done ? "done" : ""}`}>{item.title}</span>
       </li>
     );
@@ -1699,7 +1710,7 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
 
   return (
     <li
-      className={`item task ${prioClass} ${dnd ? "sortable" : ""} ${current && !item.done ? "is-current" : ""}`}
+      className={`item task ${prioClass} ${dnd ? "sortable" : ""} ${current && !item.done ? "is-current" : ""} ${item.blocked && !item.done ? "is-blocked" : ""}`}
       data-id={item.id}
     >
       {/* Primär: Griff + Checkbox + Name */}
@@ -1724,9 +1735,21 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
         </div>
       )}
 
+      {item.blocked && !item.done && (
+        <div className="tm-blocked">
+          🚧 Wartet{item.blockedNote ? <> auf: <strong>{item.blockedNote}</strong></> : " – kann noch nicht angefangen werden"}
+        </div>
+      )}
+
       {/* Tertiär: Optionen (dezent) */}
       <div className="task-opts">
-        {list === "today" && (
+        <button
+          className={`btn opt ${item.blocked ? "blocked-on" : ""}`}
+          type="button"
+          title={item.blocked ? "Blockade aufheben" : "Kann noch nicht angefangen werden"}
+          onClick={() => api.setBlocked(list, item.id, !item.blocked)}
+        >{item.blocked ? "▶ Freigeben" : "🚧 Wartet noch"}</button>
+        {list === "today" && !item.blocked && (
           <button className="btn opt" title="Fokus-Vollbild" onClick={() => api.setFocus(item.id)} type="button">🎯 Fokus</button>
         )}
         <button className="btn opt" title="Bearbeiten" onClick={() => api.setEdit(list, item.id)} type="button">✏️ Bearbeiten</button>
@@ -1931,6 +1954,8 @@ function TaskEditor({ item, list, api }) {
   const [prio, setPrio] = useState(item.prio || "");
   const [dur, setDur] = useState(item.durationMin ? String(item.durationMin) : "");
   const [due, setDue] = useState(item.dueISO || "");
+  const [blocked, setBlocked] = useState(!!item.blocked);
+  const [blockedNote, setBlockedNote] = useState(item.blockedNote || "");
 
   const close = () => api.setEdit(null, null);
   const save = () => {
@@ -1939,6 +1964,8 @@ function TaskEditor({ item, list, api }) {
       prio: prio || null,
       durationMin: dur ? Math.max(1, Math.round(+dur)) : null,
       dueISO: due || null,
+      blocked,
+      blockedNote: blocked ? blockedNote.trim() : "",
     });
     close();
   };
@@ -1966,6 +1993,15 @@ function TaskEditor({ item, list, api }) {
             <DatePicker value={due || null} onChange={iso => setDue(iso || "")} />
           </div>
         </div>
+
+        <label className="ed-block">
+          <input type="checkbox" checked={blocked} onChange={e => setBlocked(e.target.checked)} />
+          <span>🚧 Kann noch nicht angefangen werden</span>
+        </label>
+        {blocked && (
+          <input className="input" value={blockedNote} onChange={e => setBlockedNote(e.target.value)}
+            placeholder="Worauf wartet es? (optional)" />
+        )}
 
         <div className="row between ed-actions">
           <button className="btn ed-del" onClick={del} type="button">Löschen</button>

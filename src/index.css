@@ -265,6 +265,16 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* Jetzt dran im Tagesplan */
 .item.task.is-current{box-shadow:0 0 0 1px var(--accent);border-color:var(--accent)}
 
+/* Blockiert / wartet auf etwas */
+.item.task.is-blocked{opacity:.62;border-left:3px solid #f59e0b}
+.item.task.is-blocked .task-title{color:#d8dbe6}
+.tm-blocked{font-size:12.5px;color:#fcd34d;background:rgba(245,158,11,.09);border-left:3px solid #f59e0b;border-radius:8px;padding:6px 10px;margin:0 0 9px}
+.task-opts .btn.opt.blocked-on{color:#fcd34d;border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.1)}
+.ed-block{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:13.5px;cursor:pointer}
+.ed-block input{width:17px;height:17px}
+.item.task.compact-row.is-blocked{opacity:.6;box-shadow:inset 3px 0 0 #f59e0b}
+.cr-block{flex:0 0 auto;font-size:12px}
+
 /* Kompakt-Modus: nur der Name, als saubere Liste */
 .compact-toggle{padding:4px 10px;font-size:11.5px;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;cursor:pointer}
 .compact-toggle:hover{color:var(--fg);border-color:var(--accent)}
