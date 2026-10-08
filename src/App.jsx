@@ -1877,17 +1877,15 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
   );
 }
 
-/* --- Lauf-Animation: eine Pflanze, die in 10 Minuten aufblüht --- */
-const GROW_PHRASES = [
-  ["Samen gelegt", "Boden bereitet", "Es geht los"],
-  ["Es keimt", "Zartes Grün", "Der erste Trieb"],
-  ["Erstes Blatt", "Es wird was", "Wächst sich aus"],
-  ["Richtig am Wachsen", "Kräftig dabei", "Blatt um Blatt"],
-  ["Knospe kurz vorm Aufgehen", "Gleich blüht's", "Fast soweit"],
-  ["Voll erblüht", "Prachtstück", "Das ist Flow"],
-];
-const BLOOM_PHRASES = ["Blüht über die Zeit", "Nachspielzeit mit Stil", "Immer noch am Blühen"];
-const BREAK_PHRASES = ["Erholung läuft", "Durchatmen", "Kurz regenerieren", "Wurzeln wässern"];
+/* --- Lauf-Animation: ein Wesen, das mit der Aufgabe wächst --- */
+const CREATURES = ["flower", "tree", "cat", "dog"];
+// Feste Zuordnung pro Aufgabe – dieselbe Aufgabe hat immer dasselbe Wesen
+function creatureFor(id) {
+  const s = String(id || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return CREATURES[h % CREATURES.length];
+}
 
 // Wachstum folgt der geplanten Dauer: bei Ablauf ist die Blüte offen.
 // Ohne geplante Dauer als Rückfall 10 Minuten.
@@ -1897,30 +1895,48 @@ function growStage(spentSec, plannedSec) {
   if (p < 0.08) return 0;
   if (p < 0.25) return 1;
   if (p < 0.50) return 2;
-  if (p < 0.75) return 3;
-  if (p < 1) return 4;
-  return 5;
+  if (p < 0.72) return 3;
+  if (p < 0.95) return 4;
+  return 5; // fertig in den letzten 5 %
 }
 
-function WorkPulse({ spentSec, plannedSec, isBreak, big }) {
+function WorkPulse({ id, spentSec, plannedSec, isBreak, big }) {
   const over = plannedSec > 0 && spentSec > plannedSec;
   const stage = growStage(spentSec, plannedSec);
-  // Begriffe wechseln alle 20 Sekunden – ruhig, aber lebendig
-  const tick = Math.floor(spentSec / 20);
-  const pool = isBreak ? BREAK_PHRASES : (over ? BLOOM_PHRASES : GROW_PHRASES[stage]);
-  const text = pool[tick % pool.length];
+  const kind = creatureFor(id);
 
   return (
-    <span className={`work-pulse ${isBreak ? "is-break" : ""} ${big ? "big" : ""}`}>
-      <span className={`plant stage-${stage} ${over ? "is-bloom-over" : ""}`} aria-hidden="true">
-        <span className="pl-stem" />
-        <span className="pl-leaf l" />
-        <span className="pl-leaf r" />
-        <span className="pl-bud" />
-        <span className="pl-bloom" />
-        <span className="pl-soil" />
+    <span className={`work-pulse ${isBreak ? "is-break" : ""} ${big ? "big" : ""}`} aria-hidden="true">
+      <span className={`plant ${kind} stage-${stage} ${over ? "is-bloom-over" : ""}`}>
+        {kind === "flower" && (<>
+          <span className="pl-stem" />
+          <span className="pl-leaf l" />
+          <span className="pl-leaf r" />
+          <span className="pl-bud" />
+          <span className="pl-bloom" />
+          <span className="pl-soil" />
+        </>)}
+        {kind === "tree" && (<>
+          <span className="tr-trunk" />
+          <span className="tr-crown c1" />
+          <span className="tr-crown c2" />
+          <span className="tr-crown c3" />
+          <span className="tr-fruit" />
+          <span className="pl-soil" />
+        </>)}
+        {(kind === "cat" || kind === "dog") && (
+          <span className="an">
+            <span className="an-tail" />
+            <span className="an-body" />
+            <span className="an-head" />
+            <span className="an-ear l" />
+            <span className="an-ear r" />
+            {kind === "dog" && <span className="an-snout" />}
+            <span className="an-eye l" />
+            <span className="an-eye r" />
+          </span>
+        )}
       </span>
-      <span className="wp-text">{text}</span>
     </span>
   );
 }
@@ -1957,7 +1973,7 @@ function TaskTimer({ item, timers, api, compact }) {
           <button className="btn ghost tt-btn" type="button" title="Timer zurücksetzen" onClick={() => api.taskResetTimer(item.id)}>↺</button>
         )}
       </div>
-      {isActive && <WorkPulse spentSec={spent} plannedSec={plannedSec} isBreak={isBreak} />}
+      {isActive && <WorkPulse id={item.id} spentSec={spent} plannedSec={plannedSec} isBreak={isBreak} />}
       {plannedSec > 0 && (
         <div className="tt-bar"><div className={`tt-fill s-${barState}`} style={{ width: `${over ? 100 : pct}%` }} /></div>
       )}
@@ -2220,7 +2236,7 @@ function FocusOverlay({ item, api }) {
             ? (finished ? "Pause vorbei – bereit für den nächsten Block" : `${mmss(plannedSec)} Pause · läuft runter`)
             : (plannedSec ? (over ? "über der geplanten Zeit – alles gut, bleib dran" : `von ${mmss(plannedSec)} geplant · ${mmss(spent)} gearbeitet`) : `${mmss(spent)} gearbeitet`)}
         </div>
-        {isActive && <WorkPulse spentSec={spent} plannedSec={plannedSec} isBreak={isBreak} big />}
+        {isActive && <WorkPulse id={item.id} spentSec={spent} plannedSec={plannedSec} isBreak={isBreak} big />}
 
         {plannedSec > 0 && (
           <div className="tt-bar focus-bar"><div className={`tt-fill s-${barState}`} style={{ width: `${over ? 100 : pct}%` }} /></div>

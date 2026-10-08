@@ -579,6 +579,88 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 @keyframes pl-sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
 @keyframes pl-nod{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.12) rotate(8deg)}}
 
+/* ---------- Baum ---------- */
+.tr-trunk{left:50%;bottom:calc(2px * var(--pl));width:calc(4px * var(--pl));margin-left:calc(-2px * var(--pl));height:0;border-radius:999px;background:linear-gradient(180deg,#a97c50,#6b4a2f)}
+.tr-crown{border-radius:50%;background:#34d399;transform:scale(0);opacity:0}
+.tr-crown.c1{left:50%;margin-left:calc(-11px * var(--pl));bottom:calc(16px * var(--pl));width:calc(12px * var(--pl));height:calc(12px * var(--pl))}
+.tr-crown.c2{left:50%;margin-left:calc(-1px * var(--pl));bottom:calc(16px * var(--pl));width:calc(12px * var(--pl));height:calc(12px * var(--pl))}
+.tr-crown.c3{left:50%;margin-left:calc(-7px * var(--pl));bottom:calc(22px * var(--pl));width:calc(14px * var(--pl));height:calc(13px * var(--pl));background:#4ade80}
+.tr-fruit{
+  left:50%;margin-left:calc(-1.5px * var(--pl));bottom:calc(21px * var(--pl));
+  width:calc(3px * var(--pl));height:calc(3px * var(--pl));border-radius:50%;
+  background:#f87171;transform:scale(0);opacity:0;
+  box-shadow:calc(-7px * var(--pl)) calc(3px * var(--pl)) 0 0 #fbbf24, calc(7px * var(--pl)) calc(2px * var(--pl)) 0 0 #f87171;
+}
+.plant.tree.stage-0 .tr-trunk{height:calc(4px * var(--pl))}
+.plant.tree.stage-1 .tr-trunk{height:calc(10px * var(--pl))}
+.plant.tree.stage-2 .tr-trunk{height:calc(15px * var(--pl))}
+.plant.tree.stage-3 .tr-trunk{height:calc(18px * var(--pl))}
+.plant.tree.stage-4 .tr-trunk{height:calc(20px * var(--pl))}
+.plant.tree.stage-5 .tr-trunk{height:calc(21px * var(--pl))}
+.plant.tree.stage-2 .tr-crown.c1,
+.plant.tree.stage-3 .tr-crown.c1,.plant.tree.stage-3 .tr-crown.c2,
+.plant.tree.stage-4 .tr-crown,.plant.tree.stage-5 .tr-crown{transform:scale(1);opacity:1}
+.plant.tree.stage-5 .tr-fruit{transform:scale(1);opacity:1}
+.plant.tree.stage-5.is-bloom-over .tr-fruit{animation:pl-nod 2.6s ease-in-out infinite}
+
+/* ---------- Katze & Hund ---------- */
+.an{position:absolute;left:0;bottom:0;width:100%;height:100%;transform-origin:bottom center;transform:scale(var(--s,1));transition:transform .7s cubic-bezier(.3,.8,.4,1)}
+.plant.cat.stage-0 .an,.plant.dog.stage-0 .an{--s:.42}
+.plant.cat.stage-1 .an,.plant.dog.stage-1 .an{--s:.55}
+.plant.cat.stage-2 .an,.plant.dog.stage-2 .an{--s:.68}
+.plant.cat.stage-3 .an,.plant.dog.stage-3 .an{--s:.80}
+.plant.cat.stage-4 .an,.plant.dog.stage-4 .an{--s:.91}
+.plant.cat.stage-5 .an,.plant.dog.stage-5 .an{--s:1}
+
+.an > span{position:absolute;transition:all .6s cubic-bezier(.3,.8,.4,1)}
+.an-body{left:50%;bottom:0;width:calc(17px * var(--pl));height:calc(15px * var(--pl));margin-left:calc(-8.5px * var(--pl));border-radius:50% 50% 46% 46%;background:#9ca3af}
+.an-head{left:50%;bottom:calc(12px * var(--pl));width:calc(13px * var(--pl));height:calc(12px * var(--pl));margin-left:calc(-6.5px * var(--pl));border-radius:50%;background:#9ca3af;transform:scale(0);opacity:0}
+.an-ear{bottom:calc(21px * var(--pl));width:0;height:0;border-left:calc(3.5px * var(--pl)) solid transparent;border-right:calc(3.5px * var(--pl)) solid transparent;border-bottom:calc(6px * var(--pl)) solid #9ca3af;transform:scale(0);opacity:0}
+.an-ear.l{left:50%;margin-left:calc(-7px * var(--pl))}
+.an-ear.r{left:50%;margin-left:calc(0px * var(--pl))}
+.an-eye{width:calc(2px * var(--pl));height:calc(2px * var(--pl));border-radius:50%;background:#0f172a;bottom:calc(18px * var(--pl));transform:scale(0);opacity:0}
+.an-eye.l{left:50%;margin-left:calc(-4px * var(--pl))}
+.an-eye.r{left:50%;margin-left:calc(2px * var(--pl))}
+.an-tail{left:50%;margin-left:calc(6px * var(--pl));bottom:calc(1px * var(--pl));width:calc(3px * var(--pl));height:calc(13px * var(--pl));border-radius:999px;background:#9ca3af;transform-origin:bottom left;transform:rotate(-18deg) scale(0);opacity:0}
+.an-snout{left:50%;bottom:calc(12px * var(--pl));width:calc(7px * var(--pl));height:calc(5px * var(--pl));margin-left:calc(-3.5px * var(--pl));border-radius:50%;background:#e7d3b8;transform:scale(0);opacity:0}
+
+/* Hund: andere Farben, Schlappohren */
+.plant.dog .an-body,.plant.dog .an-head{background:#b98b5e}
+.plant.dog .an-ear{
+  border:0;width:calc(5px * var(--pl));height:calc(9px * var(--pl));
+  border-radius:999px;background:#8a6240;bottom:calc(16px * var(--pl));
+}
+.plant.dog .an-ear.l{margin-left:calc(-9px * var(--pl))}
+.plant.dog .an-ear.r{margin-left:calc(4px * var(--pl))}
+.plant.dog .an-tail{background:#b98b5e}
+.plant.dog .an-eye{bottom:calc(19px * var(--pl))}
+
+/* Stufenweise erwachen */
+.plant.cat.stage-1 .an-head,.plant.dog.stage-1 .an-head,
+.plant.cat.stage-2 .an-head,.plant.dog.stage-2 .an-head,
+.plant.cat.stage-3 .an-head,.plant.dog.stage-3 .an-head,
+.plant.cat.stage-4 .an-head,.plant.dog.stage-4 .an-head,
+.plant.cat.stage-5 .an-head,.plant.dog.stage-5 .an-head{transform:scale(1);opacity:1}
+
+.plant.cat.stage-2 .an-ear,.plant.dog.stage-2 .an-ear,
+.plant.cat.stage-3 .an-ear,.plant.dog.stage-3 .an-ear,
+.plant.cat.stage-4 .an-ear,.plant.dog.stage-4 .an-ear,
+.plant.cat.stage-5 .an-ear,.plant.dog.stage-5 .an-ear,
+.plant.dog.stage-2 .an-snout,.plant.dog.stage-3 .an-snout,
+.plant.dog.stage-4 .an-snout,.plant.dog.stage-5 .an-snout{transform:scale(1);opacity:1}
+
+.plant.cat.stage-3 .an-eye,.plant.dog.stage-3 .an-eye,
+.plant.cat.stage-4 .an-eye,.plant.dog.stage-4 .an-eye,
+.plant.cat.stage-5 .an-eye,.plant.dog.stage-5 .an-eye{transform:scale(1);opacity:1}
+
+.plant.cat.stage-4 .an-tail,.plant.dog.stage-4 .an-tail,
+.plant.cat.stage-5 .an-tail,.plant.dog.stage-5 .an-tail{transform:rotate(-18deg) scale(1);opacity:1}
+.plant.cat.stage-5 .an-tail{animation:an-swish 2.4s ease-in-out infinite}
+.plant.dog.stage-5 .an-tail{animation:an-wag .7s ease-in-out infinite}
+
+@keyframes an-swish{0%,100%{transform:rotate(-26deg) scale(1)}50%{transform:rotate(-6deg) scale(1)}}
+@keyframes an-wag{0%,100%{transform:rotate(-30deg) scale(1)}50%{transform:rotate(-2deg) scale(1)}}
+
 /* Kompaktzeile: laufende Aufgabe pulsiert dezent am Balken */
 .item.task.compact-row.is-running{animation:cr-run 2s ease-in-out infinite}
 @keyframes cr-run{
@@ -588,7 +670,10 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 
 @media (prefers-reduced-motion: reduce){
   .plant{animation:none}
-  .plant.stage-5.is-bloom-over .pl-bloom{animation:none}
+  .plant.stage-5.is-bloom-over .pl-bloom,
+  .plant.tree.stage-5.is-bloom-over .tr-fruit,
+  .plant.cat.stage-5 .an-tail,
+  .plant.dog.stage-5 .an-tail{animation:none}
   .item.task.compact-row.is-running{animation:none}
 }
 
