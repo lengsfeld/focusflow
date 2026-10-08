@@ -296,7 +296,8 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* Zeile – überschreibt bewusst Karten- und Handle-Stile */
 .item.compact-row,
 .item.compact-row.drag-handle{
-  display:flex;align-items:center;justify-content:flex-start;gap:9px;
+  display:flex;flex-direction:row;flex-wrap:nowrap;
+  align-items:center;justify-content:flex-start;gap:9px;
   padding:10px 12px 10px 9px;margin:0;text-align:left;
   border:0;
   border-bottom:1px solid rgba(255,255,255,.07);
