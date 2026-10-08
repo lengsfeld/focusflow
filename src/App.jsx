@@ -900,6 +900,7 @@ export default function App() {
             <button className="btn" onClick={() => { if (confirm("Alles zurücksetzen?")) api.resetAll(); }}>Reset</button>
           </div>
         </div>
+        <StatusBar state={state} api={api} />
       </div>
 
       {/* Drawer-Menü */}
@@ -1072,6 +1073,50 @@ const sortedToday = useMemo(() => {
         );
       })()}
     </>
+  );
+}
+
+/* --- Status-Menüband: immer sichtbar, ersetzt die Übersicht --- */
+function StatusBar({ state, api }) {
+  const budget = computeBudgetToday(state);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const checkinDone = (state.checkins || []).some(c => c.dateISO.slice(0, 10) === todayStr);
+  const doneCount = state.planner.today.filter(i => !i.isBreak && i.done).length;
+  const totalCount = state.planner.today.filter(i => !i.isBreak).length;
+  const readyBuys = (state.purchases || []).filter(purchaseReady).length;
+  const go = api.setRoute;
+  const route = state.ui.route;
+
+  return (
+    <div className="statusbar">
+      <button className={`sb-chip ${route === "planner" ? "active" : ""}`} onClick={() => go("planner")} title="Tagesplan">
+        <span className="sb-ico">▦</span><span className="sb-num">{doneCount}/{totalCount}</span>
+      </button>
+
+      <button className={`sb-chip ${budget.over > 0 ? "warn" : ""}`} onClick={() => go("planner")} title="Zeitbudget heute">
+        <span className="sb-ico">⏱</span>
+        <span className="sb-num">{budget.total}/{budget.target}</span>
+        <span className="sb-bar"><i className={budget.over > 0 ? "over" : ""} style={{ width: `${budget.pct}%` }} /></span>
+      </button>
+
+      <button className={`sb-chip ${checkinDone ? "ok" : ""} ${route === "checkin" ? "active" : ""}`} onClick={() => go("checkin")} title="Micro-Check-in">
+        <span className="sb-ico">🧭</span><span className="sb-label">Check-in{checkinDone ? " ✓" : ""}</span>
+      </button>
+
+      <button className={`sb-chip ${route === "stress" ? "active" : ""}`} onClick={() => go("stress")} title="Übungen">
+        <span className="sb-ico">🌿</span>
+      </button>
+
+      <button className={`sb-chip ${route === "review" ? "active" : ""}`} onClick={() => go("review")} title="Tagesrückblick">
+        <span className="sb-ico">🌙</span>
+      </button>
+
+      {readyBuys > 0 && (
+        <button className="sb-chip warn" onClick={() => go("buy")} title="Anschaffung entscheiden">
+          <span className="sb-ico">🛒</span><span className="sb-num">{readyBuys}</span>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1291,6 +1336,7 @@ function PlannerView({ state, api }) {
           allowAdd={false}
           dnd
           currentId={todayCurrentId}
+          quickAdd
         />
 
         {/* Später (ehemals Backlog + Pool) */}
@@ -1625,7 +1671,7 @@ function _PlannerColumn({
   api,
   listKey, title, items,
   onAdd, onToggle, onDelete, onMove,
-  allowAdd, dnd, currentId
+  allowAdd, dnd, currentId, quickAdd
 }) {
   const [v, setV] = useState("");
   const [p, setP] = useState("NDNW");
@@ -1661,6 +1707,8 @@ function _PlannerColumn({
           onClick={() => api.setCompact(!compact)}
         >{compact ? "⊞ Details" : "≡ Kompakt"}</button>
       </div>
+
+      {quickAdd && <QuickAddToday api={api} />}
 
       {allowAdd && (
         <div className="add-form mt8">
@@ -1717,7 +1765,7 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
       item.prio === "NDNW" ? "prio-ndnw" : "";
     return (
       <li
-        className={`item task compact-row ${cPrio} ${dnd ? "sortable drag-handle" : ""} ${current && !item.done ? "is-current" : ""} ${item.blocked && !item.done ? "is-blocked" : ""}`}
+        className={`item task compact-row ${cPrio} ${dnd ? "sortable drag-handle" : ""} ${current && !item.done ? "is-current" : ""} ${item.blocked && !item.done ? "is-blocked" : ""} ${api.state.timers?.activeId === item.id ? "is-running" : ""}`}
         data-id={item.id}
         title={item.blocked ? `Wartet${item.blockedNote ? ` auf: ${item.blockedNote}` : ""}` : item.title}
       >
@@ -1829,6 +1877,33 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
   );
 }
 
+/* --- Lauf-Animation: Pegelbalken + Status, der die Laufzeit kennt --- */
+function workStage(spentSec, plannedSec, isBreak) {
+  if (isBreak) {
+    const left = plannedSec ? plannedSec - spentSec : null;
+    if (left !== null && left <= 0) return { icon: "🌿", text: "Pause erfüllt" };
+    return { icon: "🌿", text: "Erholung läuft" };
+  }
+  if (plannedSec > 0 && spentSec > plannedSec) return { icon: "⏱", text: "Nachspielzeit" };
+  const m = spentSec / 60;
+  if (m < 1) return { icon: "🫠", text: "Warmlaufen" };
+  if (m < 5) return { icon: "🚶", text: "Angelaufen" };
+  if (m < 15) return { icon: "🌊", text: "Im Flow" };
+  if (m < 30) return { icon: "🧠", text: "Tief drin" };
+  if (m < 60) return { icon: "⚙️", text: "Maschinenraum" };
+  return { icon: "🏃", text: "Dauerlauf" };
+}
+
+function WorkPulse({ spentSec, plannedSec, isBreak, big }) {
+  const st = workStage(spentSec, plannedSec, isBreak);
+  return (
+    <span className={`work-pulse ${isBreak ? "is-break" : ""} ${big ? "big" : ""}`}>
+      <span className="wp-bars" aria-hidden="true"><i /><i /><i /></span>
+      <span className="wp-text">{st.icon} {st.text}</span>
+    </span>
+  );
+}
+
 /* =========================================================
    Aufgaben-Timer (Start/Ende je Aufgabe) + Countdown-Balken
    ========================================================= */
@@ -1861,6 +1936,7 @@ function TaskTimer({ item, timers, api, compact }) {
           <button className="btn ghost tt-btn" type="button" title="Timer zurücksetzen" onClick={() => api.taskResetTimer(item.id)}>↺</button>
         )}
       </div>
+      {isActive && <WorkPulse spentSec={spent} plannedSec={plannedSec} isBreak={isBreak} />}
       {plannedSec > 0 && (
         <div className="tt-bar"><div className={`tt-fill s-${barState}`} style={{ width: `${over ? 100 : pct}%` }} /></div>
       )}
@@ -2123,6 +2199,8 @@ function FocusOverlay({ item, api }) {
             ? (finished ? "Pause vorbei – bereit für den nächsten Block" : `${mmss(plannedSec)} Pause · läuft runter`)
             : (plannedSec ? (over ? "über der geplanten Zeit – alles gut, bleib dran" : `von ${mmss(plannedSec)} geplant · ${mmss(spent)} gearbeitet`) : `${mmss(spent)} gearbeitet`)}
         </div>
+        {isActive && <WorkPulse spentSec={spent} plannedSec={plannedSec} isBreak={isBreak} big />}
+
         {plannedSec > 0 && (
           <div className="tt-bar focus-bar"><div className={`tt-fill s-${barState}`} style={{ width: `${over ? 100 : pct}%` }} /></div>
         )}
