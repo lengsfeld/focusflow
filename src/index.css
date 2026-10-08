@@ -265,6 +265,25 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* Jetzt dran im Tagesplan */
 .item.task.is-current{box-shadow:0 0 0 1px var(--accent);border-color:var(--accent)}
 
+/* Kompakt-Modus: eine Zeile pro Aufgabe */
+.compact-toggle{padding:4px 10px;font-size:11.5px;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;cursor:pointer}
+.compact-toggle:hover{color:var(--fg);border-color:var(--accent)}
+.item.compact-row{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:10px;min-height:0}
+.item.task.compact-row{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-left:1px solid rgba(255,255,255,.09)}
+.item.task.compact-row:hover{transform:none;background:rgba(255,255,255,.06)}
+.item.break.compact-row{padding:6px 11px;font-style:normal}
+.compact-row .checkbox{transform:none;margin:0}
+.compact-row .drag-handle{font-size:15px;padding:0 2px}
+.cr-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.cr-dot.prio-dw{background:var(--prio-dw-l)}
+.cr-dot.prio-ndw{background:var(--prio-ndw-l)}
+.cr-dot.prio-dnw{background:var(--prio-dnw-l)}
+.cr-dot.prio-ndnw{background:var(--prio-ndnw-l)}
+.cr-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:600}
+.cr-title.done{text-decoration:line-through;opacity:.5}
+.cr-min{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.cr-edit{padding:3px 7px;font-size:11px;flex:0 0 auto}
+
 /* Überbuchtes Zeitbudget */
 .card.budget-over{border-color:rgba(239,68,68,.45);background:linear-gradient(180deg, rgba(239,68,68,.07), transparent), var(--panel)}
 .budget-warn{font-size:13px;line-height:1.5;color:#fca5a5;margin:9px 0 0}

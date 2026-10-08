@@ -288,6 +288,9 @@ function useStore() {
   // Fokus-Vollbild (Jetzt-Modus)
   const setFocus = (id) => setState(s => ({ ...s, ui: { ...s.ui, focusId: id } }));
 
+  // Kompakt-Ansicht im Tagesplan (nur Titel statt voller Karten)
+  const setCompact = (v) => setState(s => ({ ...s, ui: { ...s.ui, compact: !!v } }));
+
   // Aufgaben-Editor
   const setEdit = (list, id) => setState(s => ({ ...s, ui: { ...s.ui, edit: (list && id) ? { list, id } : null } }));
   const plannerUpdate = (list, id, patch) => setState(s => {
@@ -617,7 +620,7 @@ const autoPlanToday = (overrideMinutes) => {
     }
   }; // <-- diese Klammer + Semikolon MUSS da sein
 
-  return { state, setState, setRoute, setFocus, setEdit, setListOrder, setPrio, setConsent, setNickname,
+  return { state, setState, setRoute, setFocus, setEdit, setCompact, setListOrder, setPrio, setConsent, setNickname,
     // Planner
     plannerAdd, plannerToggle, plannerDelete, plannerUpdate, plannerMove, moveItem, autoPlanToday,
     // Inbox
@@ -731,6 +734,7 @@ function migrate(s) {
   out.ui ||= { route: "home", focusId: null };
   if (!("focusId" in out.ui)) out.ui.focusId = null;
   if (!("edit" in out.ui)) out.ui.edit = null;
+  if (!("compact" in out.ui)) out.ui.compact = false;
   // entfernte Routen auf Home zurücksetzen
   if (!["home", "planner", "calendar", "stress", "checkin", "review", "buy"].includes(out.ui.route)) {
     out.ui.route = "home";
@@ -901,14 +905,11 @@ const sortedToday = useMemo(() => {
     return firstOpen?.id || null;
   }, [sortedToday, state.timers]);
 
-  // Aktuelle Aufgabe + die nächsten zwei (Pausen als Kontext inbegriffen)
-  const { currentItem, nextUp, restCount } = useMemo(() => {
-    const open = sortedToday.filter(t => !t.done);
-    const idx = open.findIndex(t => t.id === currentId);
-    const cur = idx >= 0 ? open[idx] : null;
-    const after = idx >= 0 ? open.slice(idx + 1) : open;
-    return { currentItem: cur, nextUp: after.slice(0, 2), restCount: Math.max(0, after.length - 2) };
-  }, [sortedToday, currentId]);
+  // Vorgeschlagene Aufgabe (für den Jetzt-Modus-Knopf)
+  const currentItem = useMemo(
+    () => sortedToday.find(t => t.id === currentId) || null,
+    [sortedToday, currentId]
+  );
 
   const budget = computeBudgetToday(state);
 
@@ -951,43 +952,29 @@ const sortedToday = useMemo(() => {
 
       <div className="card">
         <div className="row between">
-          <strong>Jetzt dran</strong>
+          <strong>Heute</strong>
           <span className="muted">{todayDone}/{todayTotal} erledigt</span>
         </div>
+        <p className="muted">Such dir aus, was gerade passt – „Jetzt dran" ist nur ein Vorschlag.</p>
 
         <QuickAddToday api={api} />
 
-        {currentItem ? (
-          <ul className="list mt8">
+        <ul className="list mt8">
+          {sortedToday.map(it => (
             <PlannerRow
+              key={it.id}
               api={api}
               list="today"
-              item={currentItem}
-              current
+              item={it}
+              current={it.id === currentId}
               onToggle={(id) => api.plannerToggle("today", id)}
               onDelete={(id) => api.plannerDelete("today", id)}
-              onMove={() => {}}
-              onMoveBetween={() => {}}
+              onMove={(id, dir) => api.plannerMove("today", id, dir)}
+              onMoveBetween={(id, to) => api.moveItem("today", to, id)}
             />
-          </ul>
-        ) : (
-          <p className="muted mt8">
-            {todayTotal === 0 ? "Noch nichts geplant – leg oben etwas an oder baue den Plan im Tagesplan." : "Alles erledigt für heute. 🎉"}
-          </p>
-        )}
-
-        {nextUp.length > 0 && (
-          <div className="next-up">
-            <div className="next-up-title">Als Nächstes</div>
-            {nextUp.map(it => (
-              <div key={it.id} className={`next-item ${it.isBreak ? "is-break" : ""}`}>
-                <span className="ni-title">{it.isBreak ? `🌿 ${it.title || "Pause"}` : it.title}</span>
-                {it.durationMin ? <span className="ni-min">{it.durationMin} Min</span> : null}
-              </div>
-            ))}
-            {restCount > 0 && <div className="next-rest">+{restCount} weitere im Tagesplan</div>}
-          </div>
-        )}
+          ))}
+          {!sortedToday.length && <div className="muted">Noch nichts geplant.</div>}
+        </ul>
 
         <div className="progress"><div className="progress-bar" style={{ width: `${progressPct}%` }} /></div>
 
@@ -1608,10 +1595,19 @@ function _PlannerColumn({
 
   const ulRef = useRef(null);
   useSortableList(ulRef, { list: listKey, api, enabled: !!dnd });
+  const compact = !!api.state.ui.compact;
 
   return (
     <div className="card">
-      <div className="row between"><strong>{title}</strong></div>
+      <div className="row between">
+        <strong>{title}</strong>
+        <button
+          className="btn opt compact-toggle"
+          type="button"
+          title={compact ? "Volle Karten zeigen" : "Nur Titel zeigen"}
+          onClick={() => api.setCompact(!compact)}
+        >{compact ? "⊞ Details" : "≡ Kompakt"}</button>
+      </div>
 
       {allowAdd && (
         <div className="add-form mt8">
@@ -1642,6 +1638,7 @@ function _PlannerColumn({
             onMove={(id, dir) => onMove(id, dir)}
             dnd={dnd}
             current={!!currentId && it.id === currentId}
+            compact={compact}
           />
         ))}
         {!sorted.length && <div className="muted">Noch keine Einträge.</div>}
@@ -1650,7 +1647,37 @@ function _PlannerColumn({
   );
 }
 
-function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current }) {
+function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current, compact }) {
+  // Kompakt: eine Zeile, nur Titel – Ziehen bleibt möglich
+  if (compact) {
+    if (item.isBreak) {
+      return (
+        <li className="item break compact-row">
+          <span className="cr-title">🌿 {item.title || "Pause"}</span>
+          <span className="cr-min">{item.durationMin || 10}′</span>
+        </li>
+      );
+    }
+    const dot =
+      item.prio === "DW" ? "prio-dw" :
+      item.prio === "NDW" ? "prio-ndw" :
+      item.prio === "DNW" ? "prio-dnw" :
+      item.prio === "NDNW" ? "prio-ndnw" : "";
+    return (
+      <li
+        className={`item task compact-row ${dnd ? "sortable" : ""} ${current && !item.done ? "is-current" : ""}`}
+        data-id={item.id}
+      >
+        {dnd && <span className="drag-handle" title="Zum Umsortieren ziehen">⠿</span>}
+        <input type="checkbox" className="checkbox" checked={item.done} onChange={() => onToggle(item.id)} />
+        {dot && <span className={`cr-dot ${dot}`} />}
+        <span className={`cr-title ${item.done ? "done" : ""}`}>{item.title}</span>
+        {item.durationMin ? <span className="cr-min">{item.durationMin}′</span> : null}
+        <button className="btn opt cr-edit" type="button" title="Bearbeiten" onClick={() => api.setEdit(list, item.id)}>✏️</button>
+      </li>
+    );
+  }
+
   if (item.isBreak) {
     return (
       <li className="item break" aria-label={`Pause ${item.durationMin || 10} Minuten`}>
