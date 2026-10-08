@@ -1889,20 +1889,22 @@ const GROW_PHRASES = [
 const BLOOM_PHRASES = ["Blüht über die Zeit", "Nachspielzeit mit Stil", "Immer noch am Blühen"];
 const BREAK_PHRASES = ["Erholung läuft", "Durchatmen", "Kurz regenerieren", "Wurzeln wässern"];
 
-// 0–10 Minuten in sechs Stufen, danach dauerhaft Blüte
-function growStage(spentSec) {
-  const m = spentSec / 60;
-  if (m < 1) return 0;
-  if (m < 2.5) return 1;
-  if (m < 5) return 2;
-  if (m < 7.5) return 3;
-  if (m < 10) return 4;
+// Wachstum folgt der geplanten Dauer: bei Ablauf ist die Blüte offen.
+// Ohne geplante Dauer als Rückfall 10 Minuten.
+function growStage(spentSec, plannedSec) {
+  const total = plannedSec > 0 ? plannedSec : 10 * 60;
+  const p = Math.min(1, spentSec / total);
+  if (p < 0.08) return 0;
+  if (p < 0.25) return 1;
+  if (p < 0.50) return 2;
+  if (p < 0.75) return 3;
+  if (p < 1) return 4;
   return 5;
 }
 
 function WorkPulse({ spentSec, plannedSec, isBreak, big }) {
-  const over = !isBreak && plannedSec > 0 && spentSec > plannedSec;
-  const stage = isBreak ? 3 : growStage(spentSec);
+  const over = plannedSec > 0 && spentSec > plannedSec;
+  const stage = growStage(spentSec, plannedSec);
   // Begriffe wechseln alle 20 Sekunden – ruhig, aber lebendig
   const tick = Math.floor(spentSec / 20);
   const pool = isBreak ? BREAK_PHRASES : (over ? BLOOM_PHRASES : GROW_PHRASES[stage]);
