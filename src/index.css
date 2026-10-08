@@ -265,24 +265,39 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
 /* Jetzt dran im Tagesplan */
 .item.task.is-current{box-shadow:0 0 0 1px var(--accent);border-color:var(--accent)}
 
-/* Kompakt-Modus: eine Zeile pro Aufgabe */
+/* Kompakt-Modus: nur der Name, als saubere Liste */
 .compact-toggle{padding:4px 10px;font-size:11.5px;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;cursor:pointer}
 .compact-toggle:hover{color:var(--fg);border-color:var(--accent)}
-.item.compact-row{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:10px;min-height:0}
-.item.task.compact-row{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-left:1px solid rgba(255,255,255,.09)}
-.item.task.compact-row:hover{transform:none;background:rgba(255,255,255,.06)}
-.item.break.compact-row{padding:6px 11px;font-style:normal}
-.compact-row .checkbox{transform:none;margin:0}
-.compact-row .drag-handle{font-size:15px;padding:0 2px}
-.cr-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
-.cr-dot.prio-dw{background:var(--prio-dw-l)}
-.cr-dot.prio-ndw{background:var(--prio-ndw-l)}
-.cr-dot.prio-dnw{background:var(--prio-dnw-l)}
-.cr-dot.prio-ndnw{background:var(--prio-ndnw-l)}
-.cr-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:600}
-.cr-title.done{text-decoration:line-through;opacity:.5}
-.cr-min{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto}
-.cr-edit{padding:3px 7px;font-size:11px;flex:0 0 auto}
+
+.list.compact-list{gap:0;border:1px solid rgba(255,255,255,.09);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02)}
+
+/* Zeile – überschreibt bewusst Karten- und Handle-Stile */
+.item.compact-row,
+.item.compact-row.drag-handle{
+  display:flex;align-items:center;gap:10px;
+  padding:13px 14px;margin:0;
+  border:0;border-bottom:1px solid rgba(255,255,255,.07);border-radius:0;
+  background:transparent;box-shadow:none;transform:none;
+  color:var(--fg);font-size:inherit;font-style:normal;
+  cursor:grab;
+}
+.list.compact-list > .item.compact-row:last-child{border-bottom:0}
+.item.compact-row:hover,
+.item.compact-row.drag-handle:hover{background:rgba(255,255,255,.05);color:var(--fg);transform:none}
+.item.compact-row:active{cursor:grabbing}
+
+.cr-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:600;line-height:1.3}
+.cr-title.done{text-decoration:line-through;opacity:.45;font-weight:500}
+
+/* Pause: ruhig und zurückgenommen */
+.item.break.compact-row{padding:9px 14px;background:rgba(34,197,94,.06)}
+.item.break.compact-row .cr-title{font-size:13px;font-weight:600;color:#8fdcb0}
+
+/* Jetzt dran: nur eine Kante, kein Kasten */
+.item.task.compact-row.is-current{
+  background:rgba(109,131,255,.10);
+  box-shadow:inset 3px 0 0 var(--accent);
+}
 
 /* Überbuchtes Zeitbudget */
 .card.budget-over{border-color:rgba(239,68,68,.45);background:linear-gradient(180deg, rgba(239,68,68,.07), transparent), var(--panel)}

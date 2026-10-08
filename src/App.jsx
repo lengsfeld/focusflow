@@ -1626,7 +1626,7 @@ function _PlannerColumn({
         </div>
       )}
 
-      <ul className="list mt8" ref={ulRef}>
+      <ul className={`list mt8 ${compact ? "compact-list" : ""}`} ref={ulRef}>
         {sorted.map(it => (
           <_PlannerRow
             key={it.id}
@@ -1648,32 +1648,22 @@ function _PlannerColumn({
 }
 
 function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current, compact }) {
-  // Kompakt: eine Zeile, nur Titel – Ziehen bleibt möglich
+  // Kompakt: nur der Name, ganze Zeile ziehbar, keine Bedienelemente
   if (compact) {
     if (item.isBreak) {
       return (
         <li className="item break compact-row">
           <span className="cr-title">🌿 {item.title || "Pause"}</span>
-          <span className="cr-min">{item.durationMin || 10}′</span>
         </li>
       );
     }
-    const dot =
-      item.prio === "DW" ? "prio-dw" :
-      item.prio === "NDW" ? "prio-ndw" :
-      item.prio === "DNW" ? "prio-dnw" :
-      item.prio === "NDNW" ? "prio-ndnw" : "";
     return (
       <li
-        className={`item task compact-row ${dnd ? "sortable" : ""} ${current && !item.done ? "is-current" : ""}`}
+        className={`item task compact-row ${dnd ? "sortable drag-handle" : ""} ${current && !item.done ? "is-current" : ""}`}
         data-id={item.id}
+        title={item.title}
       >
-        {dnd && <span className="drag-handle" title="Zum Umsortieren ziehen">⠿</span>}
-        <input type="checkbox" className="checkbox" checked={item.done} onChange={() => onToggle(item.id)} />
-        {dot && <span className={`cr-dot ${dot}`} />}
         <span className={`cr-title ${item.done ? "done" : ""}`}>{item.title}</span>
-        {item.durationMin ? <span className="cr-min">{item.durationMin}′</span> : null}
-        <button className="btn opt cr-edit" type="button" title="Bearbeiten" onClick={() => api.setEdit(list, item.id)}>✏️</button>
       </li>
     );
   }
