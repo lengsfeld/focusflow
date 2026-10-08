@@ -1721,8 +1721,6 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
         data-id={item.id}
         title={item.blocked ? `Wartet${item.blockedNote ? ` auf: ${item.blockedNote}` : ""}` : item.title}
       >
-        {item.blocked && !item.done && <span className="cr-block">🚧</span>}
-        <span className={`cr-title ${item.done ? "done" : ""}`}>{item.title}</span>
         {list === "today" && !item.done && !item.blocked && (
           <button
             className="cr-focus"
@@ -1731,6 +1729,8 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
             onClick={() => api.setFocus(item.id)}
           >🎯</button>
         )}
+        {item.blocked && !item.done && <span className="cr-block">🚧</span>}
+        <span className={`cr-title ${item.done ? "done" : ""}`}>{item.title}</span>
       </li>
     );
   }
