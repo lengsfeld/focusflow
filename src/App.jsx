@@ -703,7 +703,8 @@ function useSortableList(ref, { list, api, enabled }) {
       animation: 150,
       handle: ".drag-handle",
       draggable: ".sortable",
-      filter: "input, textarea",
+      filter: "input, textarea, button, .cr-focus",
+      preventOnFilter: false,
       ghostClass: "drag-ghost",
       chosenClass: "drag-chosen",
       forceFallback: true,       // einheitliches Verhalten Desktop + Touch
@@ -1722,6 +1723,14 @@ function _PlannerRow({ api, list, item, onToggle, onDelete, onMove, dnd, current
       >
         {item.blocked && !item.done && <span className="cr-block">🚧</span>}
         <span className={`cr-title ${item.done ? "done" : ""}`}>{item.title}</span>
+        {list === "today" && !item.done && !item.blocked && (
+          <button
+            className="cr-focus"
+            type="button"
+            title="Im Fokus-Vollbild starten"
+            onClick={() => api.setFocus(item.id)}
+          >🎯</button>
+        )}
       </li>
     );
   }
