@@ -1133,7 +1133,21 @@ button.matrix-title:hover{text-decoration:underline}
 .pattern-tip-title{font-weight:800;font-size:13.5px;color:#86efac}
 .pattern-tip-how{font-size:13.5px;line-height:1.5;color:#dfe3ee}
 .pattern-action{margin-top:8px;align-self:flex-start;padding:8px 14px;font-size:13.5px}
-.baseline-text{font-size:13.5px;line-height:1.5;margin:6px 0 0;color:#aebaf0;border-left:3px solid var(--accent);padding:7px 11px;background:rgba(109,131,255,.07);border-radius:9px}
+/* Einordnung gegenüber der eigenen Historie */
+.standing{margin-top:10px;padding:9px 12px;border-left:3px solid var(--accent);background:rgba(109,131,255,.07);border-radius:9px}
+.st-line{font-size:13.5px;line-height:1.45;color:#c3ccf5;font-weight:700}
+.st-sub{font-size:12.5px;line-height:1.45;color:#aebaf0;margin-top:3px}
+
+/* Nuancen gegenüber der Normallage */
+.nuance{margin-top:14px}
+.nu-chips{display:flex;flex-wrap:wrap;gap:6px}
+.nu-chip{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid;font-weight:600}
+.nu-chip strong{font-variant-numeric:tabular-nums}
+.nu-chip.up{color:#86efac;border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.08)}
+.nu-chip.down{color:#fcd34d;border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.08)}
+
+/* Orientierung ohne Ratschlag */
+.orient-note{font-size:13.5px;line-height:1.55;margin:14px 0 0;color:#dfe3ee}
 .trend-text{font-size:13.5px;line-height:1.5;margin:8px 0 4px;color:#e9ecf5}
 
 /* Check-in Abschluss */

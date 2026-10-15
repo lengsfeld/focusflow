@@ -3074,66 +3074,186 @@ function ScaleADHD({ label, value, set, lo, hi, marker }) {
 const CHECKIN_PATTERNS = [
   {
     id: "startblockade",
-    match: v => v.procrast <= 2.5 && v.energy >= 3,
+    match: (L) => L.has("procrast") && !L.has("energy"),
     read: "Energie wäre eigentlich da – aber der Einstieg klemmt. Das ist die klassische ADHS-Startblockade: Das Problem ist nicht dein Wille, sondern die Schwelle zwischen Wollen und Anfangen.",
     tip: { t: "Schwelle absenken", h: "Nimm die kleinste Aufgabe, stell 2 Minuten Timer, starte im Jetzt-Modus. Nicht die Aufgabe schaffen – nur die Schwelle knacken. Der Rest kommt oft von allein." },
     action: { label: "🎯 Jetzt-Modus starten", act: "focus-first" },
   },
   {
     id: "ueberreizt",
-    match: v => v.stimuli <= 2.5 && (v.thoughts <= 3 || v.loud >= 4),
+    match: (L, H) => L.has("stimuli") && (L.has("thoughts") || H.has("loud")),
     read: "Dein Filter ist gerade durchlässig: Es kommt mehr Input rein, als dein Kopf sortieren kann. Die Gedankenflut ist dabei eher Folge als Ursache – dein System ist schlicht überreizt.",
     tip: { t: "Input drosseln, dann leeren", h: "Erst physisch Reize weg (Kopfhörer, Handy in anderen Raum, ein Fenster offen). Dann 2 Minuten alles in die Auffangbox kippen – erst leer schreiben, dann arbeiten." },
     action: { label: "💭 Auffangbox öffnen", act: "planner" },
   },
   {
     id: "erschoepft",
-    match: v => v.energy <= 2.5 && (v.mood <= 3 || v.tension <= 3),
+    match: (L) => L.has("energy") && (L.has("mood") || L.has("tension")),
     read: "Der Tank ist leer, und das drückt auf Stimmung und Körper. Das ist Erschöpfung – kein Motivationsproblem. Dein System fordert gerade Erholung ein, nicht mehr Disziplin.",
     tip: { t: "Erst auffüllen, dann leisten", h: "10 Minuten ganz ohne Anforderung: Wasser, etwas essen, kurz raus. Danach höchstens EINE kleine Aufgabe – heute zählt Erhalt, nicht Output." },
     action: { label: "🌿 Übungen öffnen", act: "stress" },
   },
   {
     id: "hochgefahren",
-    match: v => v.loud >= 4 && v.tension <= 2.5,
+    match: (L, H) => H.has("loud") && L.has("tension"),
     read: "Du bist innerlich hochgefahren – viel Aktivierung, aber der Körper hält die Spannung fest. Gegen diesen Zustand anzudenken funktioniert selten; er will erst raus, dann runter.",
     tip: { t: "Erst raus, dann runter", h: "5 Minuten zügige Bewegung (Treppe, schnelles Gehen), direkt danach die Atemübung Physio-Seufzer. Die Reihenfolge ist der Trick: Energie abbauen, dann beruhigen." },
     action: { label: "🌬 Physio-Seufzer öffnen", act: "stress" },
   },
   {
     id: "zersplittert",
-    match: v => v.focus <= 2.5 && v.impulse <= 2.5,
+    match: (L) => L.has("focus") && L.has("impulse"),
     read: "Deine Aufmerksamkeit ist gerade zersplittert – sie springt, weil alles gleich laut ruft. Das ist keine Undiszipliniertheit, sondern ein Priorisierungsstau im Kopf.",
     tip: { t: "Künstlich EINE Sache laut machen", h: "Wähl irgendeine Aufgabe (welche ist fast egal) und öffne den Jetzt-Modus. Der Vollbildmodus übernimmt das Priorisieren, das dein Kopf gerade nicht leisten kann." },
     action: { label: "🎯 Jetzt-Modus starten", act: "focus-first" },
   },
   {
     id: "sozial-leer",
-    match: v => v.social <= 2.5 && v.energy >= 3,
+    match: (L) => L.has("social") && !L.has("energy"),
     read: "Deine Energie ist okay, aber die soziale Batterie ist leer – Menschen kosten dich heute mehr als sonst. Das ist ein echtes Bedürfnis nach Rückzug, keine Unfreundlichkeit.",
     tip: { t: "Rückzug einplanen statt erdulden", h: "Blockiere bewusst 30 Minuten ohne Menschen und Nachrichten. Geplanter Rückzug lädt – erzwungenes Durchhalten entlädt weiter." },
   },
   {
     id: "gedrückt",
-    match: v => v.mood <= 2.5 && v.energy >= 3,
+    match: (L) => L.has("mood") && !L.has("energy"),
     read: "Die Stimmung ist gedrückt, obwohl Energie da ist – oft ein Zeichen, dass Frust sich angestaut hat oder ein Erfolgserlebnis fehlt, nicht dass der Tag verloren ist.",
     tip: { t: "Ein schneller Beweis", h: "Erledige eine Mini-Aufgabe (2–5 Min) und hak sie sichtbar ab. Ein einziger kleiner Erfolg verschiebt die Stimmung mehr als eine Stunde Grübeln." },
     action: { label: "🎯 Kleinste Aufgabe starten", act: "focus-first" },
   },
+  {
+    id: "gedankenflut",
+    match: (L) => L.has("thoughts") && !L.has("stimuli"),
+    read: "Von außen ist es ruhig – der Lärm kommt von innen. Dein Arbeitsgedächtnis hält zu viele offene Schleifen gleichzeitig, und jede davon zieht Aufmerksamkeit ab.",
+    tip: { t: "Kopf auf Papier entlasten", h: "Zwei Minuten alles in die Auffangbox kippen, ungefiltert und ohne Sortieren. Was aufgeschrieben ist, muss dein Kopf nicht mehr festhalten." },
+    action: { label: "💭 Auffangbox öffnen", act: "planner" },
+  },
+  {
+    id: "koerper-haelt",
+    match: (L) => L.has("tension") && !L.has("energy") && !L.has("mood"),
+    read: "Kopf und Stimmung sind okay, aber der Körper ist verspannt. Das wird gern übersehen – Anspannung frisst still Konzentration, lange bevor du sie als Stress bemerkst.",
+    tip: { t: "Körper zuerst, Kopf folgt", h: "Zwei Minuten Schultern kreisen und bewusst ausatmen, oder die Mini-PMR-Übung. Lockerer Körper macht den Kopf schneller frei als jeder Vorsatz." },
+    action: { label: "🌿 Übungen öffnen", act: "stress" },
+  },
+  {
+    id: "fokus-einzeln",
+    match: (L) => L.has("focus") && !L.has("impulse") && !L.has("thoughts") && !L.has("energy"),
+    read: "Energie und Kopf sind da, aber der Fokus rastet nicht ein. Das deutet weniger auf Erschöpfung hin als auf eine Aufgabe, die zu vage ist – unklare Aufgaben bieten der Aufmerksamkeit keinen Griff.",
+    tip: { t: "Aufgabe schärfen statt antreiben", h: "Nimm deine aktuelle Aufgabe und formulier den allerersten Handgriff so konkret, dass du ihn sofort tun könntest. Nicht 'Bericht machen', sondern 'Dokument öffnen und Überschrift tippen'." },
+    action: { label: "💭 Auffangbox öffnen", act: "planner" },
+  },
+  {
+    id: "rueckenwind",
+    match: (L, H) => L.size === 0 && H.size >= 3,
+    read: "Mehrere Werte liegen gleichzeitig oben – das ist ein Zustand, den du nicht jeden Tag hast. Solche Fenster sind kurz und eignen sich für genau das, was sonst liegen bleibt.",
+    tip: { t: "Das Schwerste zuerst", h: "Nimm jetzt die Aufgabe, vor der du dich sonst drückst – nicht die leichteste. Rückenwind verbraucht man am besten bergauf." },
+    action: { label: "🎯 Jetzt-Modus starten", act: "focus-first" },
+  },
 ];
-function analyzeCheckin(vals, score) {
-  const v = Object.fromEntries(Object.entries(vals).map(([k, x]) => [k, Number(x) || 0]));
-  const band = scoreBand(score);
-  const patterns = CHECKIN_PATTERNS.filter(p => p.match(v)).slice(0, 2);
 
-  let fallback = null;
-  if (!patterns.length) {
-    if (band.label === "gut") fallback = "Deine Werte tragen sich gegenseitig – nichts zieht dich gerade ernsthaft runter. Nutz den Rückenwind für das, was dir wichtig ist.";
-    else if (band.label === "solide") fallback = "Kein einzelner Bereich sticht negativ heraus – es ist eher ein allgemeines Mittelmaß. Ein guter Tag für Routine statt Großprojekte.";
-    else fallback = "Vieles ist gleichzeitig ein bisschen zäh, ohne dass ein einzelner Auslöser heraussticht. Solche Tage sind diffus – mach sie klein: eine Sache, eine Pause, fertig.";
+const CHECKIN_NAMES = {
+  focus: "der Fokus", thoughts: "die Gedankenruhe", tension: "die Lockerheit",
+  stimuli: "der Reizschutz", impulse: "das Dranbleiben", social: "die soziale Energie",
+  energy: "die Energie", mood: "die Stimmung", procrast: "das Ins-Tun-Kommen",
+};
+const CHECKIN_SHORT = {
+  focus: "Fokus", thoughts: "Gedankenruhe", tension: "Lockerheit",
+  stimuli: "Reizschutz", impulse: "Dranbleiben", social: "Soziale Energie",
+  energy: "Energie", mood: "Stimmung", procrast: "Ins Tun kommen",
+};
+const CHECK_DIMS = ["focus", "thoughts", "tension", "stimuli", "impulse", "social", "energy", "mood", "procrast"];
+
+// Persönliche Normallage aus der Historie (letzte 14 Check-ins)
+function checkinBaseline(checkins) {
+  const prior = (checkins || []).filter(c => c.answers?.type === "adhd").slice(0, 14);
+  if (prior.length < 3) return null;
+
+  const mean = {};
+  CHECK_DIMS.forEach(k => {
+    const xs = prior.map(c => Number(c.answers?.[k])).filter(n => Number.isFinite(n));
+    if (xs.length) mean[k] = xs.reduce((a, b) => a + b, 0) / xs.length;
+  });
+
+  const scores = prior.map(c => Number(c.score) || 0);
+  const scoreAvg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+
+  // Tendenz: jüngere Hälfte gegen ältere (prior[0] = neuester)
+  const half = Math.max(1, Math.floor(scores.length / 2));
+  const recent = scores.slice(0, half);
+  const older = scores.slice(half);
+  const trend = older.length
+    ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length - older.reduce((a, b) => a + b, 0) / older.length)
+    : 0;
+
+  return { mean, scoreAvg, trend, n: prior.length };
+}
+function analyzeCheckin(vals, score, checkins) {
+  const arr = CHECK_DIMS.map(k => ({ k, v: Number(vals[k]) || 0 }));
+  const loud = Number(vals.loud) || 0;
+  const band = scoreBand(score);
+  const base = checkinBaseline(checkins);
+
+  const L = new Set(), H = new Set();
+  let ups = [], downs = [];
+
+  if (base) {
+    // Nuancen: Abweichung von DEINER Normallage
+    for (const { k, v } of arr) {
+      const m = base.mean[k];
+      if (!Number.isFinite(m)) continue;
+      const d = v - m;
+      if (d <= -0.6) { L.add(k); downs.push({ k, d }); }
+      else if (d >= 0.6) { H.add(k); ups.push({ k, d }); }
+    }
+    downs.sort((a, b) => a.d - b.d);
+    ups.sort((a, b) => b.d - a.d);
+  } else {
+    // Ohne Historie: Gefälle innerhalb des heutigen Check-ins
+    const avg = arr.reduce((s, x) => s + x.v, 0) / arr.length;
+    arr.forEach(x => {
+      if (x.v <= 2.5 || x.v <= avg - 0.4) L.add(x.k);
+      else if (x.v >= 4 || x.v >= avg + 0.4) H.add(x.k);
+    });
   }
 
-  return { band, patterns, fallback };
+  if (loud >= 4) H.add("loud");
+  if (loud <= 2) L.add("loud");
+
+  const patterns = CHECKIN_PATTERNS.filter(p => p.match(L, H)).slice(0, 2);
+
+  // Einordnung gegenüber der eigenen Historie
+  let standing = null;
+  if (base) {
+    const d = score - base.scoreAvg;
+    const level =
+      d >= 8 ? `Heute liegst du deutlich über deinem Schnitt von ${base.scoreAvg}.` :
+      d >= 3 ? `Heute liegst du etwas über deinem Schnitt von ${base.scoreAvg}.` :
+      d <= -8 ? `Heute liegst du deutlich unter deinem Schnitt von ${base.scoreAvg}.` :
+      d <= -3 ? `Heute liegst du etwas unter deinem Schnitt von ${base.scoreAvg}.` :
+      `Heute liegst du genau auf deinem Schnitt von ${base.scoreAvg}.`;
+    const tendency =
+      base.trend >= 5 ? "Die letzten Check-ins zeigen nach oben." :
+      base.trend <= -5 ? "Die letzten Check-ins zeigen nach unten." :
+      "Über die letzten Check-ins bleibst du stabil.";
+    standing = { level, tendency, n: base.n, scoreAvg: base.scoreAvg, delta: d };
+  }
+
+  // Nur wenn kein Muster greift: kurze Orientierung statt Ratschlag
+  let orientation = null;
+  if (!patterns.length) {
+    if (base && !ups.length && !downs.length) {
+      orientation = "Keine Ausreißer gegenüber deinen letzten Tagen – du bewegst dich in deiner gewohnten Lage. Das ist keine Diagnose und kein Auftrag, nur eine Standortbestimmung.";
+    } else if (base) {
+      orientation = "Kein eindeutiges Muster, aber die Verschiebungen oben zeigen, woran es heute liegt. Mehr braucht es nicht – du weißt jetzt, wo du stehst.";
+    } else {
+      const byVal = [...arr].sort((a, b) => a.v - b.v);
+      const weak = byVal[0], strong = byVal[byVal.length - 1];
+      orientation = (strong.v - weak.v) < 0.6
+        ? "Deine Werte liegen eng beieinander – ein gleichmäßiger Tag ohne Ausreißer."
+        : `Am stärksten trägt dich gerade ${CHECKIN_NAMES[strong.k]}, am ehesten zieht ${CHECKIN_NAMES[weak.k]}.`;
+    }
+  }
+
+  return { band, patterns, standing, ups, downs, orientation, hasBase: !!base };
 }
 
 // Warme Ansprache je nach Zustand
@@ -3162,10 +3282,9 @@ function baselineText(score, checkins) {
 }
 
 function CheckinSummary({ vals, score, checkins, api }) {
-  const s = analyzeCheckin(vals, score);
+  const s = analyzeCheckin(vals, score, checkins);
   const bandCls = s.band.label.toLowerCase().replace(/\s+/g, '-');
   const greeting = warmGreeting(s.band, api?.state?.profile?.nickname);
-  const baseline = baselineText(score, checkins);
 
   const runAction = (act) => {
     if (!api) return;
@@ -3187,9 +3306,29 @@ function CheckinSummary({ vals, score, checkins, api }) {
       </div>
 
       <p className="summary-headline">{greeting}</p>
-      {baseline && <p className="baseline-text">{baseline}</p>}
 
-      {s.fallback && <p className="pattern-read mt8">{s.fallback}</p>}
+      {s.standing && (
+        <div className="standing">
+          <div className="st-line">{s.standing.level}</div>
+          <div className="st-sub">{s.standing.tendency} <span className="muted">· Basis: {s.standing.n} Check-ins</span></div>
+        </div>
+      )}
+
+      {s.hasBase && (s.ups.length > 0 || s.downs.length > 0) && (
+        <div className="nuance">
+          <div className="summary-block-title">Im Vergleich zu deinen letzten Tagen</div>
+          <div className="nu-chips">
+            {s.ups.map(x => (
+              <span key={x.k} className="nu-chip up">{CHECKIN_SHORT[x.k]} <strong>+{x.d.toFixed(1)}</strong></span>
+            ))}
+            {s.downs.map(x => (
+              <span key={x.k} className="nu-chip down">{CHECKIN_SHORT[x.k]} <strong>{x.d.toFixed(1)}</strong></span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {s.orientation && <p className="orient-note">{s.orientation}</p>}
 
       {s.patterns.map(p => (
         <div key={p.id} className="pattern-block">
