@@ -3168,7 +3168,7 @@ function checkinBaseline(checkins) {
   if (prior.length < 3) return null;
 
   const mean = {};
-  CHECK_DIMS.forEach(k => {
+  [...CHECK_DIMS, "loud"].forEach(k => {
     const xs = prior.map(c => Number(c.answers?.[k])).filter(n => Number.isFinite(n));
     if (xs.length) mean[k] = xs.reduce((a, b) => a + b, 0) / xs.length;
   });
@@ -3215,8 +3215,16 @@ function analyzeCheckin(vals, score, checkins) {
     });
   }
 
-  if (loud >= 4) H.add("loud");
-  if (loud <= 2) L.add("loud");
+  // Lautstärke: neutraler Marker – mit Historie relativ, sonst absolut
+  let loudDev = null;
+  if (base && Number.isFinite(base.mean.loud)) {
+    loudDev = loud - base.mean.loud;
+    if (loudDev >= 0.6) H.add("loud");
+    else if (loudDev <= -0.6) L.add("loud");
+  } else {
+    if (loud >= 4) H.add("loud");
+    if (loud <= 2) L.add("loud");
+  }
 
   const patterns = CHECKIN_PATTERNS.filter(p => p.match(L, H)).slice(0, 2);
 
@@ -3253,7 +3261,7 @@ function analyzeCheckin(vals, score, checkins) {
     }
   }
 
-  return { band, patterns, standing, ups, downs, orientation, hasBase: !!base };
+  return { band, patterns, standing, ups, downs, orientation, hasBase: !!base, loudDev };
 }
 
 // Warme Ansprache je nach Zustand
@@ -3314,7 +3322,7 @@ function CheckinSummary({ vals, score, checkins, api }) {
         </div>
       )}
 
-      {s.hasBase && (s.ups.length > 0 || s.downs.length > 0) && (
+      {s.hasBase && (s.ups.length > 0 || s.downs.length > 0 || Math.abs(s.loudDev || 0) >= 0.6) && (
         <div className="nuance">
           <div className="summary-block-title">Im Vergleich zu deinen letzten Tagen</div>
           <div className="nu-chips">
@@ -3324,6 +3332,11 @@ function CheckinSummary({ vals, score, checkins, api }) {
             {s.downs.map(x => (
               <span key={x.k} className="nu-chip down">{CHECKIN_SHORT[x.k]} <strong>{x.d.toFixed(1)}</strong></span>
             ))}
+            {Math.abs(s.loudDev || 0) >= 0.6 && (
+              <span className="nu-chip neutral">
+                {s.loudDev > 0 ? "Lauter als sonst" : "Leiser als sonst"} <strong>{s.loudDev > 0 ? "+" : ""}{s.loudDev.toFixed(1)}</strong>
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -3346,6 +3359,36 @@ function CheckinSummary({ vals, score, checkins, api }) {
       ))}
     </div>
   );
+}
+
+/* Zusammenhang: Was unterscheidet laute von ruhigen Tagen? */
+function loudInsight(checkins) {
+  const prior = (checkins || []).filter(c =>
+    c.answers?.type === "adhd" && Number.isFinite(Number(c.answers?.loud)));
+  if (prior.length < 6) return null;
+
+  const louds = prior.map(c => Number(c.answers.loud)).sort((a, b) => a - b);
+  const med = louds[Math.floor(louds.length / 2)];
+  const hi = prior.filter(c => Number(c.answers.loud) > med);
+  const lo = prior.filter(c => Number(c.answers.loud) < med);
+  if (hi.length < 2 || lo.length < 2) return null;
+
+  const meanOf = (list, k) => {
+    const xs = list.map(c => Number(c.answers?.[k])).filter(n => Number.isFinite(n));
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  };
+
+  let best = null;
+  for (const k of CHECK_DIMS) {
+    const a = meanOf(hi, k), b = meanOf(lo, k);
+    if (a === null || b === null) continue;
+    const d = a - b;
+    if (!best || Math.abs(d) > Math.abs(best.d)) best = { k, d };
+  }
+  if (!best || Math.abs(best.d) < 0.5) return null;
+
+  const dir = best.d < 0 ? "niedriger" : "höher";
+  return `An deinen lauteren Tagen liegt ${CHECKIN_NAMES[best.k]} im Schnitt ${Math.abs(best.d).toFixed(1)} Punkte ${dir} als an ruhigen Tagen.`;
 }
 
 /* ---------- Check-in Verlauf ---------- */
@@ -3398,6 +3441,10 @@ function CheckinHistory({ checkins = [] }) {
         <span className="muted">Ø {avg}/100</span>
       </div>
       <p className="trend-text">{trendText}</p>
+      {(() => {
+        const ins = loudInsight(checkins);
+        return ins ? <p className="loud-insight">🔊 {ins}</p> : null;
+      })()}
       <p className="muted">Gesamt-Score je Check-in (0–100, höher = besser). Letzte {last.length} Einträge.</p>
 
       <div className="chart">
