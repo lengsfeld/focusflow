@@ -993,7 +993,7 @@ const sortedToday = useMemo(() => {
 
   return (
     <>
-      <div className="card card-hero">
+      <div className="card lv-back">
         <h2 className="h1">Hi {state.profile.nickname || "Du"} 👋</h2>
         <p className="muted">Selbsthilfe • Struktur • Fokus</p>
         <div className="row wrap mt8">
@@ -1010,7 +1010,7 @@ const sortedToday = useMemo(() => {
         )}
       </div>
 
-      <div className="card">
+      <div className="card lv-front">
         <div className="row between">
           <strong>Heute</strong>
           <span className="muted">{todayDone}/{todayTotal} erledigt</span>
@@ -1049,12 +1049,12 @@ const sortedToday = useMemo(() => {
         </div>
       </div>
 
-      <div className={`card ${budget.over > 0 ? "budget-over" : ""}`}>
+      <div className={`card ${budget.over > 0 ? "lv-front ch-signal" : "lv-mid ch-feedback"}`}>
         <strong>Tag im Blick</strong>
         <BudgetBlock budget={budget} />
       </div>
 
-      <div className="card">
+      <div className="card lv-mid ch-feedback">
         <strong>Self-Check-in</strong>
         <p className="muted">{todayCheckin ? `Heute erledigt · Score ${todayCheckin.score}/100` : "Noch kein Check-in heute."}</p>
         <button className="btn btn-primary" onClick={() => go("checkin")}>
@@ -1062,7 +1062,7 @@ const sortedToday = useMemo(() => {
         </button>
       </div>
 
-      <div className="card">
+      <div className="card lv-mid ch-input">
         <strong>Gedanken-Auffangbox</strong>
         <p className="muted">{state.inbox.length} geparkt · im Tagesplan zu Aufgaben machen</p>
         <button className="btn" onClick={() => go("planner")}>Zum Tagesplan</button>
@@ -1072,7 +1072,7 @@ const sortedToday = useMemo(() => {
         const ready = (state.purchases || []).filter(purchaseReady);
         if (!ready.length) return null;
         return (
-          <div className="card">
+          <div className="card lv-front ch-signal">
             <strong>Anschaffung entscheiden</strong>
             <p className="muted">
               Bei {ready.length === 1 ? <>„{ready[0].title}"</> : `${ready.length} Anschaffungen`} ist die Wartezeit vorbei. Willst du es immer noch?
@@ -1719,7 +1719,8 @@ function _PlannerColumn({
       {quickAdd && <QuickAddToday api={api} />}
 
       {allowAdd && (
-        <div className="add-form mt8">
+        <div className="add-form col-add mt8">
+          <div className="add-form-title">＋ Neue Aufgabe anlegen</div>
           <input className="input" placeholder="Aufgabe…" value={v}
             onChange={e => setV(e.target.value)}
             onKeyDown={e => e.key === "Enter" && add()} />
@@ -2331,7 +2332,7 @@ function ReviewView({ state, api }) {
     <>
       <h2 className="h1">Tagesrückblick 🌙</h2>
 
-      <div className="card">
+      <div className="card lv-mid ch-feedback">
         <strong>Heute geschafft</strong>
         <div className="review-stats mt8">
           <div className="rev-stat"><div className="rev-num">{doneList.length}/{totalCount}</div><div className="muted">Aufgaben</div></div>
@@ -2342,13 +2343,13 @@ function ReviewView({ state, api }) {
       </div>
 
       {doneList.length > 0 && (
-        <div className="card">
+        <div className="card lv-mid">
           <strong>Erledigt ✅</strong>
           <ul className="list mt8">{doneList.map(t => <li key={t.id} className="item"><div className="title">{t.title}</div></li>)}</ul>
         </div>
       )}
 
-      <div className="card">
+      <div className="card lv-front ch-input">
         <strong>Wie war der Tag?</strong>
         <div className="row wrap mt8">
           <label>Stimmung<input type="number" min={1} max={5} value={mood} onChange={e => setMood(+e.target.value)} className="input num" /></label>
@@ -2360,7 +2361,7 @@ function ReviewView({ state, api }) {
       </div>
 
       {openList.length > 0 && (
-        <div className="card">
+        <div className="card lv-back">
           <strong>Offen für morgen</strong>
           <p className="muted">{openList.length} Aufgabe(n) bleiben im Plan – kein Stress, morgen ist auch noch Zeit.</p>
         </div>
@@ -2754,7 +2755,7 @@ function PurchaseView({ state, api }) {
       <h2 className="h1">Anschaffungen</h2>
       <p className="muted">Kurz prüfen statt sofort kaufen. Die Wartezeit wird berechnet – je impulsiver die Lage, desto länger.</p>
 
-      <details className="card foldout">
+      <details className="card lv-back foldout">
         <summary>Vorab-Check – drei ehrliche Fragen</summary>
         <ul className="precheck">
           <li>Kenne ich das Ding seit <strong>20 Minuten</strong> oder länger als eine Woche?</li>
@@ -2763,7 +2764,7 @@ function PurchaseView({ state, api }) {
         </ul>
       </details>
 
-      <div className="card">
+      <div className="card lv-front ch-input">
         <strong>Neue Anschaffung prüfen</strong>
 
         <div className="add-form mt8">
@@ -2831,7 +2832,7 @@ function PurchaseView({ state, api }) {
         </div>
       </div>
 
-      <div className="card">
+      <div className={`card ${list.some(purchaseReady) ? "lv-front ch-signal" : "lv-mid ch-feedback"}`}>
         <strong>Parkplatz</strong>
         <p className="muted">{list.length ? `${list.length} Anschaffung${list.length > 1 ? "en" : ""} in Wartezeit.` : "Aktuell nichts geparkt."}</p>
         <ul className="list mt8">
@@ -3010,7 +3011,7 @@ function CheckinView({ api, last, checkins = [] }) {
     <>
       <h2 className="h1">Micro-Check-in</h2>
 
-      <div className="card">
+      <div className="card lv-front ch-input">
         {CHECK_QUESTIONS.map(q => (
           <ScaleADHD key={q.k} label={q.label} lo={q.lo} hi={q.hi} value={vals[q.k]} set={v => setVal(q.k, v)} />
         ))}
@@ -3029,12 +3030,12 @@ function CheckinView({ api, last, checkins = [] }) {
         <>
           <CheckinSummary vals={vals} score={score} checkins={checkins} api={api} />
           {!closed ? (
-            <div className="card closing-cta">
+            <div className="card lv-mid ch-input closing-cta">
               <p className="muted">Wenn sich das stimmig anfühlt, schließ den Check-in ab – er wandert in deinen Verlauf.</p>
               <button className="btn btn-primary" onClick={finish}>✓ Check-in abschließen</button>
             </div>
           ) : (
-            <div className="card closure-card">
+            <div className="card lv-front closure-card">
               <div className="closure-check">✓</div>
               <strong>Eingecheckt.</strong>
               <p className="closure-text">Du hast heute auf dich geschaut – das ist der Teil, den die meisten auslassen. {closingGround}</p>
@@ -3049,7 +3050,7 @@ function CheckinView({ api, last, checkins = [] }) {
 
       <CheckinHistory checkins={checkins} />
 
-      {last && (<div className="card"><strong>Letzter Check-in</strong><p className="muted">{new Date(last.dateISO).toLocaleString()} · Score {last.score}/100</p></div>)}
+      {last && (<div className="card lv-back"><strong>Letzter Check-in</strong><p className="muted">{new Date(last.dateISO).toLocaleString()} · Score {last.score}/100</p></div>)}
     </>
   );
 }
@@ -3315,7 +3316,7 @@ function CheckinSummary({ vals, score, checkins, api }) {
   };
 
   return (
-    <div className={`card summary-card band-edge-${bandCls}`}>
+    <div className={`card lv-front summary-card band-edge-${bandCls}`}>
       <div className="row between">
         <strong>So geht's dir gerade</strong>
         <span className={`badge metric band-${bandCls}`}>Score {score}/100</span>
@@ -3404,7 +3405,7 @@ function CheckinHistory({ checkins = [] }) {
   const adhd = checkins.filter(c => c.answers?.type === "adhd");
   if (!adhd.length) {
     return (
-      <div className="card">
+      <div className="card lv-mid ch-feedback">
         <strong>Verlauf</strong>
         <p className="muted">Noch keine Check-ins gespeichert. Ab dem ersten Speichern siehst du hier deinen Trend.</p>
       </div>
@@ -3443,7 +3444,7 @@ function CheckinHistory({ checkins = [] }) {
   })();
 
   return (
-    <div className="card">
+    <div className="card lv-mid ch-feedback">
       <div className="row between">
         <strong>Check-in-Verlauf</strong>
         <span className="muted">Ø {avg}/100</span>
@@ -3498,7 +3499,7 @@ function CheckinHistory({ checkins = [] }) {
    ========================================================= */
 function StressView({ onAcknowledge }) {
   return (
-    <div className="card">
+    <div className="card lv-front ch-input">
       <h2 className="h1">Stress – kurze Übungen</h2>
       <ExerciseModes onAcknowledge={onAcknowledge} />
     </div>
