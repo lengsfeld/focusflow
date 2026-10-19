@@ -1273,10 +1273,8 @@ function PlannerView({ state, api }) {
 
   return (
     <>
-      <GedankenBox state={state} api={api} />
-
-      <div className="card lv-mid ch-input">
-        <strong>Arbeitszeit heute</strong>
+      <div className={`card ${budget.over > 0 ? "lv-front ch-signal" : "lv-mid ch-input"}`}>
+        <strong>Arbeitszeit & Auslastung</strong>
         <div className="row wrap mt8">
           <input
             className="range"
@@ -1320,11 +1318,8 @@ function PlannerView({ state, api }) {
         <p className="muted mt6">
           Nach jeweils 1,5 h Arbeit wird automatisch eine Pause ({state.settings.breakMinutes} Min) eingefügt.
         </p>
-      </div>
 
-      {/* Zeitbudget – Rückmeldung; bei Überbuchung Signal und eine Ebene nach vorne */}
-      <div className={`card ${budget.over > 0 ? "lv-front ch-signal" : "lv-mid ch-feedback"}`}>
-        <strong>Zeitbudget heute</strong>
+        <div className="card-split" />
         <BudgetBlock budget={budget} />
       </div>
 
@@ -1362,6 +1357,7 @@ function PlannerView({ state, api }) {
           onMove={(id, dir) => api.plannerMove("backlog", id, dir)}
           allowAdd
           dnd
+          capture
         />
       </div>
     </>
@@ -1369,14 +1365,14 @@ function PlannerView({ state, api }) {
 }
 
 /* ---------- Gedanken-Auffangbox (Quick-Capture + zu Aufgabe machen) ---------- */
-function GedankenBox({ state, api }) {
+function GedankenBox({ state, api, embedded }) {
   const [v, setV] = useState("");
   const add = () => { const t = v.trim(); if (!t) return; api.inboxAdd(t); setV(""); };
   const items = state.inbox || [];
   return (
-    <div className="card lv-mid ch-input quickthought">
+    <div className={embedded ? "capture-box quickthought" : "card lv-mid ch-input quickthought"}>
       <strong>💭 Gedanken-Auffangbox</strong>
-      <p className="muted">Ohne Prio, ohne Datum. Einfach reinwerfen – später einen Gedanken zur Aufgabe machen.</p>
+      <p className="muted">Ohne Prio, ohne Datum. Einfach reinwerfen – später wird eine Aufgabe draus.</p>
       <div className="row wrap mt8">
         <input className="input" placeholder="Was geht dir durch den Kopf?" value={v}
           onChange={e => setV(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} />
@@ -1682,7 +1678,7 @@ function _PlannerColumn({
   api,
   listKey, title, items,
   onAdd, onToggle, onDelete, onMove,
-  allowAdd, dnd, currentId, quickAdd, level = "lv-mid"
+  allowAdd, dnd, currentId, quickAdd, capture, level = "lv-mid"
 }) {
   const [v, setV] = useState("");
   const [p, setP] = useState("NDNW");
@@ -1719,6 +1715,7 @@ function _PlannerColumn({
         >{compact ? "⊞ Details" : "≡ Kompakt"}</button>
       </div>
 
+      {capture && <GedankenBox state={api.state} api={api} embedded />}
       {quickAdd && <QuickAddToday api={api} />}
 
       {allowAdd && (
