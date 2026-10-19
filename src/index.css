@@ -109,6 +109,59 @@ input,select,textarea,button{font-size:16px} /* iOS zoom fix */
   padding:16px;
   box-shadow:var(--shadow-sm)
 }
+/* ===========================================================
+   Ebenen-System
+   Regler 1 – Tiefe: Helligkeit, Rahmen, Polster, Schatten
+   Regler 2 – Charakter: Farbe (bedeutet immer Bedeutung)
+   =========================================================== */
+
+/* Vordergrund – hier handelst du gerade */
+.card.lv-front{
+  position:relative;overflow:hidden;
+  background:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015)), #18202f;
+  border:1px solid rgba(255,255,255,.17);
+  box-shadow:0 12px 34px rgba(0,0,0,.42);
+  padding:18px;
+}
+.card.lv-front::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+}
+
+/* Mittelgrund – Material, das wartet */
+.card.lv-mid{
+  background:rgba(255,255,255,.018);
+  border:1px solid rgba(255,255,255,.075);
+  box-shadow:none;
+  padding:13px 14px;
+}
+
+/* Hintergrund – reine Beschriftung */
+.lv-back{background:transparent;border:0;box-shadow:none;padding:0}
+
+/* --- Charakter: Farbe als Bedeutungsträger --- */
+.card.ch-input{border-left:3px solid rgba(109,131,255,.55)}
+.card.ch-feedback{border-left:3px solid rgba(34,211,238,.5)}
+.card.ch-signal{
+  border-left:3px solid #ef4444;
+  background:linear-gradient(180deg, rgba(239,68,68,.10), rgba(239,68,68,.02)), #1b1a26;
+  border-color:rgba(239,68,68,.4);
+  box-shadow:0 12px 32px rgba(239,68,68,.20);
+}
+.card.ch-signal.lv-front::before{background:linear-gradient(90deg,#f59e0b,#ef4444)}
+
+/* --- Dichte folgt der Tiefe --- */
+.lv-front .list{gap:10px}
+.lv-mid .list{gap:5px}
+.lv-mid .item.task{padding:9px 11px 9px 10px}
+.lv-mid .item.task .task-title{font-size:1rem}
+.lv-mid .item.task .task-meta{margin:2px 0 7px}
+.lv-mid .item.task .task-opts .btn.opt{padding:4px 8px;font-size:11.5px}
+
+/* --- Breite: Heute bekommt mehr Raum als Später --- */
+.grid.plan{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:860px){.grid.plan{grid-template-columns:1.5fr 1fr;align-items:start}}
+
 .card-hero{
   background:
     radial-gradient(600px 300px at -10% -30%, rgba(10,132,255,.16), transparent 60%),

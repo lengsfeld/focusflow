@@ -1266,7 +1266,7 @@ function PlannerView({ state, api }) {
     <>
       <GedankenBox state={state} api={api} />
 
-      <div className="card">
+      <div className="card lv-mid ch-input">
         <strong>Arbeitszeit heute</strong>
         <div className="row wrap mt8">
           <input
@@ -1313,8 +1313,8 @@ function PlannerView({ state, api }) {
         </p>
       </div>
 
-      {/* Zeitbudget */}
-      <div className={`card ${budget.over > 0 ? "budget-over" : ""}`}>
+      {/* Zeitbudget – Rückmeldung; bei Überbuchung Signal und eine Ebene nach vorne */}
+      <div className={`card ${budget.over > 0 ? "lv-front ch-signal" : "lv-mid ch-feedback"}`}>
         <strong>Zeitbudget heute</strong>
         <BudgetBlock budget={budget} />
       </div>
@@ -1322,10 +1322,11 @@ function PlannerView({ state, api }) {
       <h2 className="h1">Tagesplan</h2>
       <p className="muted">Links „Heute" (mit Pausen), rechts „Später". Umsortieren am Griff ⠿, verschieben per Button.</p>
 
-      <div className="grid two">
+      <div className="grid plan">
         {/* Heute */}
         <_PlannerColumn
           api={api}
+          level="lv-front"
           listKey="today"
           title="Heute"
           items={state.planner.today}
@@ -1342,6 +1343,7 @@ function PlannerView({ state, api }) {
         {/* Später (ehemals Backlog + Pool) */}
         <_PlannerColumn
           api={api}
+          level="lv-mid"
           listKey="backlog"
           title="Später"
           items={state.planner.backlog}
@@ -1363,7 +1365,7 @@ function GedankenBox({ state, api }) {
   const add = () => { const t = v.trim(); if (!t) return; api.inboxAdd(t); setV(""); };
   const items = state.inbox || [];
   return (
-    <div className="card quickthought">
+    <div className="card lv-mid ch-input quickthought">
       <strong>💭 Gedanken-Auffangbox</strong>
       <p className="muted">Ohne Prio, ohne Datum. Einfach reinwerfen – später einen Gedanken zur Aufgabe machen.</p>
       <div className="row wrap mt8">
@@ -1671,7 +1673,7 @@ function _PlannerColumn({
   api,
   listKey, title, items,
   onAdd, onToggle, onDelete, onMove,
-  allowAdd, dnd, currentId, quickAdd
+  allowAdd, dnd, currentId, quickAdd, level = "lv-mid"
 }) {
   const [v, setV] = useState("");
   const [p, setP] = useState("NDNW");
@@ -1697,7 +1699,7 @@ function _PlannerColumn({
   const compact = !!api.state.ui.compact;
 
   return (
-    <div className="card">
+    <div className={`card ${level}`}>
       <div className="row between">
         <strong>{title}</strong>
         <button
