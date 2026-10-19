@@ -50,9 +50,11 @@ const INITIAL = {
     dayStart: "09:00"   // Startuhrzeit für den Zeitstrahl
   },
   ui: {
-    route: "home", // wird persistiert
-    focusId: null, // aktive Aufgabe im Fokus-Vollbild
-    edit: null     // { list, id } der zu bearbeitenden Aufgabe
+    route: "home",     // wird persistiert
+    focusId: null,     // aktive Aufgabe im Fokus-Vollbild
+    edit: null,        // { list, id } der zu bearbeitenden Aufgabe
+    compactToday: false,
+    compactLater: false
   }
 };
 
@@ -288,8 +290,11 @@ function useStore() {
   // Fokus-Vollbild (Jetzt-Modus)
   const setFocus = (id) => setState(s => ({ ...s, ui: { ...s.ui, focusId: id } }));
 
-  // Kompakt-Ansicht im Tagesplan (nur Titel statt voller Karten)
-  const setCompact = (v) => setState(s => ({ ...s, ui: { ...s.ui, compact: !!v } }));
+  // Kompakt-Ansicht im Tagesplan – getrennt für Heute und Später
+  const setCompact = (listKey, v) => setState(s => ({
+    ...s,
+    ui: { ...s.ui, [listKey === "today" ? "compactToday" : "compactLater"]: !!v },
+  }));
 
   // "Kann noch nicht angefangen werden" – Abhängigkeit/Blockade (ohne Reflow, Dauer bleibt gleich)
   const setBlocked = (list, id, blocked, note) => setState(s => {
@@ -784,7 +789,11 @@ function migrate(s) {
   out.ui ||= { route: "home", focusId: null };
   if (!("focusId" in out.ui)) out.ui.focusId = null;
   if (!("edit" in out.ui)) out.ui.edit = null;
-  if (!("compact" in out.ui)) out.ui.compact = false;
+  // Kompakt-Einstellung: früher global, jetzt getrennt je Liste
+  const legacyCompact = typeof out.ui.compact === "boolean" ? out.ui.compact : false;
+  if (!("compactToday" in out.ui)) out.ui.compactToday = legacyCompact;
+  if (!("compactLater" in out.ui)) out.ui.compactLater = legacyCompact;
+  delete out.ui.compact;
   // entfernte Routen auf Home zurücksetzen
   if (!["home", "planner", "calendar", "stress", "checkin", "review", "buy"].includes(out.ui.route)) {
     out.ui.route = "home";
@@ -1696,7 +1705,7 @@ function _PlannerColumn({
 
   const ulRef = useRef(null);
   useSortableList(ulRef, { list: listKey, api, enabled: !!dnd });
-  const compact = !!api.state.ui.compact;
+  const compact = !!api.state.ui[listKey === "today" ? "compactToday" : "compactLater"];
 
   return (
     <div className={`card ${level}`}>
@@ -1705,8 +1714,8 @@ function _PlannerColumn({
         <button
           className="btn opt compact-toggle"
           type="button"
-          title={compact ? "Volle Karten zeigen" : "Nur Titel zeigen"}
-          onClick={() => api.setCompact(!compact)}
+          title={compact ? `${title}: volle Karten zeigen` : `${title}: nur Titel zeigen`}
+          onClick={() => api.setCompact(listKey, !compact)}
         >{compact ? "⊞ Details" : "≡ Kompakt"}</button>
       </div>
 
